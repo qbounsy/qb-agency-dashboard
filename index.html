@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QB Agency Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root { --navy:#1B2A4A; --blue:#2E5090; --green:#00B050; --red:#E74C3C; --orange:#ED7D31; --yellow:#F0AD4E;
+    --g50:#F9FAFB; --g100:#F3F4F6; --g200:#E5E7EB; --g300:#D1D5DB; --g500:#6B7280; --g700:#374151; --g900:#111827; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--g50);color:var(--g900);}
+  .topbar{background:var(--navy);color:#fff;padding:16px 32px;display:flex;justify-content:space-between;align-items:center;}
+  .topbar h1{font-size:20px;font-weight:600;} .topbar .sub{font-size:13px;opacity:.7;}
+  .top-right{display:flex;align-items:center;gap:16px;}
+  .top-right .ts{font-size:13px;opacity:.7;}
+  .container{max-width:1400px;margin:0 auto;padding:24px;}
+
+  /* Upload zone */
+  .upload-zone{background:#fff;border:2px dashed var(--g300);border-radius:8px;padding:40px;text-align:center;margin-bottom:24px;cursor:pointer;transition:border-color .2s;}
+  .upload-zone:hover{border-color:var(--blue);} .upload-zone.hidden{display:none;}
+  .upload-zone h2{font-size:18px;margin-bottom:8px;color:var(--g700);} .upload-zone p{color:var(--g500);font-size:14px;}
+  .upload-zone input{display:none;}
+  .btn{background:var(--blue);color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;transition:background .2s;}
+  .btn:hover{background:var(--navy);}
+  .btn-sm{padding:6px 14px;font-size:13px;}
+  .btn-outline{background:transparent;color:var(--blue);border:1.5px solid var(--blue);}
+  .btn-outline:hover{background:var(--blue);color:#fff;}
+  .btn-green{background:var(--green);}
+  .btn-green:hover{background:#009240;}
+  .btn-red{background:var(--red);}
+  .btn-red:hover{background:#c0392b;}
+
+  /* Main tabs */
+  .main-tabs{display:flex;gap:0;margin-bottom:24px;border-bottom:2px solid var(--g200);background:#fff;border-radius:8px 8px 0 0;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .main-tab{padding:14px 28px;font-size:14px;font-weight:600;cursor:pointer;color:var(--g500);border:none;background:transparent;border-bottom:3px solid transparent;transition:all .2s;position:relative;}
+  .main-tab:hover{color:var(--navy);background:var(--g50);}
+  .main-tab.active{color:var(--navy);border-bottom-color:var(--blue);background:#fff;}
+  .tab-page{display:none;} .tab-page.active{display:block;}
+
+  /* KPIs */
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:16px;margin-bottom:24px;}
+  .kpi{background:#fff;border-radius:8px;padding:18px 16px;border-left:4px solid var(--blue);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .kpi.alert{border-left-color:var(--red);} .kpi.warn{border-left-color:var(--orange);} .kpi.good{border-left-color:var(--green);}
+  .kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--g500);margin-bottom:6px;}
+  .kpi .val{font-size:24px;font-weight:700;color:var(--navy);} .kpi .sub{font-size:12px;color:var(--g500);margin-top:4px;}
+
+  /* Sections */
+  .section{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:24px;overflow:hidden;}
+  .section-hdr{padding:16px 20px;border-bottom:1px solid var(--g200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+  .section-hdr h3{font-size:15px;font-weight:600;color:var(--navy);}
+  .section-body{padding:20px;}
+
+  /* Sub tabs */
+  .tabs{display:flex;gap:4px;} .stab{padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;background:var(--g100);color:var(--g700);border:none;transition:all .15s;}
+  .stab.active{background:var(--navy);color:#fff;}
+
+  /* Filters */
+  .filters{display:flex;gap:12px;flex-wrap:wrap;padding:12px 20px;background:var(--g50);border-bottom:1px solid var(--g200);}
+  .fg{display:flex;align-items:center;gap:6px;} .fg label{font-size:12px;color:var(--g500);font-weight:500;}
+  .fg select,.fg input{font-size:13px;padding:5px 10px;border:1px solid var(--g300);border-radius:5px;background:#fff;}
+
+  /* Tables */
+  .tw{overflow-x:auto;} table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{background:var(--g50);font-weight:600;text-align:left;padding:10px 12px;border-bottom:2px solid var(--g200);color:var(--g700);position:sticky;top:0;white-space:nowrap;}
+  td{padding:10px 12px;border-bottom:1px solid var(--g100);white-space:nowrap;}
+  .clickable-row{cursor:pointer;transition:background .1s;} .clickable-row:hover td{background:#DBEAFE;}
+
+  /* Badges */
+  .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;}
+  .badge-active{background:#DEF7EC;color:#03543F;} .badge-pending{background:#FEF3C7;color:#92400E;}
+  .badge-failed{background:#FEE2E2;color:#991B1B;} .badge-lapsed{background:#FFEDD5;color:#9A3412;}
+  .badge-cancelled{background:var(--g200);color:var(--g700);} .badge-declined{background:var(--g200);color:var(--g500);}
+  .draft-urgent{color:var(--red);font-weight:700;} .draft-warning{color:var(--orange);font-weight:600;}
+
+  /* Charts */
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;} .chart-box{position:relative;height:300px;}
+  @media(max-width:900px){.chart-grid{grid-template-columns:1fr;}}
+
+  /* Alerts */
+  .alert-item{display:flex;align-items:center;padding:12px 0;border-bottom:1px solid var(--g100);gap:12px;}
+  .alert-item:last-child{border-bottom:none;}
+  .alert-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .alert-dot.urgent{background:var(--red);} .alert-dot.warn{background:var(--orange);} .alert-dot.info{background:var(--blue);}
+  .alert-text{flex:1;font-size:13px;} .alert-text strong{font-weight:600;}
+  .alert-phone{font-size:12px;color:var(--blue);font-weight:500;}
+  .empty{text-align:center;padding:60px 20px;color:var(--g500);}
+  .hidden{display:none!important;}
+
+  /* Monthly table */
+  .monthly-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+  .monthly-tbl th{background:var(--navy);color:#fff;padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;letter-spacing:.3px;}
+  .monthly-tbl th:first-child{text-align:left;border-radius:6px 0 0 0;}
+  .monthly-tbl th:last-child{border-radius:0 6px 0 0;}
+  .monthly-tbl td{padding:10px 14px;text-align:right;border-bottom:1px solid var(--g100);}
+  .monthly-tbl td:first-child{text-align:left;font-weight:600;color:var(--navy);}
+  .monthly-tbl tr:hover td{background:#EFF6FF;}
+  .monthly-tbl tr.total-row td{font-weight:700;border-top:2px solid var(--navy);background:var(--g50);color:var(--navy);}
+  .monthly-tbl tr.future td{color:var(--g300);}
+
+  /* Carrier cards */
+  .carrier-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+  .carrier-card{background:var(--g50);border-radius:8px;padding:14px 16px;border:1px solid var(--g200);}
+  .carrier-card .cc-name{font-weight:700;font-size:14px;color:var(--navy);margin-bottom:8px;}
+  .carrier-card .cc-row{display:flex;justify-content:space-between;font-size:12px;color:var(--g700);margin-bottom:3px;}
+  .carrier-card .cc-val{font-weight:600;}
+
+  /* Edit Modal */
+  .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .modal-overlay.open{opacity:1;pointer-events:all;}
+  .modal{background:#fff;border-radius:12px;width:90%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);transform:translateY(20px);transition:transform .2s;}
+  .modal-overlay.open .modal{transform:translateY(0);}
+  .modal-header{padding:20px 24px;border-bottom:1px solid var(--g200);display:flex;justify-content:space-between;align-items:center;}
+  .modal-header h2{font-size:18px;font-weight:700;color:var(--navy);}
+  .modal-close{width:32px;height:32px;border-radius:50%;border:none;background:var(--g100);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;color:var(--g700);transition:background .15s;}
+  .modal-close:hover{background:var(--g200);}
+  .modal-body{padding:24px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .form-group{display:flex;flex-direction:column;gap:4px;}
+  .form-group.full{grid-column:1/-1;}
+  .form-group label{font-size:12px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.3px;}
+  .form-group input,.form-group select,.form-group textarea{padding:10px 12px;border:1.5px solid var(--g300);border-radius:6px;font-size:14px;font-family:inherit;transition:border-color .15s;}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,80,144,.1);}
+  .form-group textarea{resize:vertical;min-height:60px;}
+  .form-group .calc-val{padding:10px 12px;background:var(--g50);border-radius:6px;font-size:14px;font-weight:600;color:var(--navy);border:1.5px solid var(--g200);}
+  .modal-footer{padding:16px 24px;border-top:1px solid var(--g200);display:flex;justify-content:flex-end;gap:10px;}
+  .edit-hint{font-size:11px;color:var(--g500);font-style:italic;padding:0 24px 12px;}
+  .unsaved-dot{width:8px;height:8px;background:var(--orange);border-radius:50%;display:inline-block;margin-left:6px;animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;z-index:2000;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;}
+  .toast.show{opacity:1;transform:translateY(0);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div><h1>QB Agency Dashboard</h1><div class="sub">Commission Tracking &bull; Payment Monitoring &bull; Carrier Payout Timing</div></div>
+  <div class="top-right">
+    <span id="srcBadge" style="display:none;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;"></span>
+    <button class="btn btn-sm btn-outline" id="syncBtn" style="display:none;color:#fff;border-color:rgba(255,255,255,.4);" onclick="syncAirtable()">Sync Airtable</button>
+    <button class="btn btn-sm btn-outline" id="refreshBtn" style="display:none;color:#fff;border-color:rgba(255,255,255,.4);" onclick="refreshData()">Import File</button>
+    <button class="btn btn-sm btn-outline" id="exportBtn" style="display:none;color:#fff;border-color:rgba(255,255,255,.4);" onclick="exportCSV()">Export CSV</button>
+    <span class="ts" id="upd"></span>
+  </div>
+</div>
+<div class="container">
+  <!-- Upload -->
+  <div class="upload-zone" id="uz" onclick="document.getElementById('fi').click()">
+    <h2>Import Your Client List</h2>
+    <p>Drag &amp; drop your <strong>.xlsx</strong> or <strong>.csv</strong> file — or click to browse.</p>
+    <p style="margin-top:8px;font-size:12px;color:#999;">Accepts the Master Tracker .xlsx directly, or a CSV export from Google Sheets.</p>
+    <input type="file" id="fi" accept=".csv,.xlsx,.xls">
+    <br><button class="btn" onclick="event.stopPropagation();loadDemo()">Load Demo Data</button>
+  </div>
+
+  <!-- Main content -->
+  <div id="dc" class="hidden">
+    <!-- 3-tab nav -->
+    <div class="main-tabs">
+      <button class="main-tab active" onclick="switchTab('overview',this)">Overview</button>
+      <button class="main-tab" onclick="switchTab('ytd',this)">Year to Date</button>
+      <button class="main-tab" onclick="switchTab('alltime',this)">All-Time Totals</button>
+    </div>
+
+    <!-- TAB 1: Overview -->
+    <div class="tab-page active" id="page-overview">
+      <div class="kpi-row" id="kpis-overview"></div>
+      <!-- Action Alerts -->
+      <div class="section">
+        <div class="section-hdr"><h3>Action Alerts</h3><div class="tabs" id="alertTabs">
+          <button class="stab active" onclick="fAlert('upcoming',this)">Upcoming Drafts</button>
+          <button class="stab" onclick="fAlert('attention',this)">Needs Attention</button>
+          <button class="stab" onclick="fAlert('recent',this)">Recently Lost (&lt;60d)</button>
+          <button class="stab" onclick="fAlert('older',this)">Older Lost (60d+)</button>
+          <button class="stab" onclick="fAlert('all',this)">All</button>
+        </div></div>
+        <div class="section-body" id="alerts"></div>
+      </div>
+      <!-- Client List -->
+      <div class="section">
+        <div class="section-hdr">
+          <h3>Client List <span style="font-size:12px;color:var(--g500);font-weight:400;">Click any row to edit</span></h3>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:13px;color:var(--g500);" id="cc"></span>
+            <span id="unsavedBadge" class="hidden" style="font-size:12px;color:var(--orange);font-weight:600;">Unsaved changes<span class="unsaved-dot"></span></span>
+            <button class="btn btn-sm btn-green" onclick="openNewClient()">+ Add Client</button>
+          </div>
+        </div>
+        <div class="filters">
+          <div class="fg"><label>Status</label><select id="fS" onchange="rTable()"><option value="">All</option></select></div>
+          <div class="fg"><label>Carrier</label><select id="fC" onchange="rTable()"><option value="">All</option></select></div>
+          <div class="fg"><label>Plan</label><select id="fP" onchange="rTable()"><option value="">All</option></select></div>
+          <div class="fg"><label>Search</label><input type="text" id="fQ" placeholder="Name..." oninput="rTable()"></div>
+        </div>
+        <div class="tw" style="max-height:500px;overflow-y:auto;"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+      </div>
+      <!-- Charts -->
+      <div class="section"><div class="section-hdr"><h3>Commission Analytics</h3></div><div class="section-body">
+        <div class="chart-grid">
+          <div class="chart-box"><canvas id="ch-carrier"></canvas></div>
+          <div class="chart-box"><canvas id="ch-status"></canvas></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- TAB 2: Year to Date -->
+    <div class="tab-page" id="page-ytd">
+      <div class="kpi-row" id="kpis-ytd"></div>
+      <!-- Monthly Earned -->
+      <div class="section">
+        <div class="section-hdr">
+          <h3>Monthly Earned Commission — <span id="ytdYear">2026</span></h3>
+          <span style="font-size:12px;color:var(--g500);">AMAM/RNA pay on approval &bull; AIG/AHL/Transamerica pay after first draft</span>
+        </div>
+        <div class="section-body"><div class="tw"><table class="monthly-tbl" id="monthlyTbl"></table></div></div>
+      </div>
+      <!-- YTD Carrier cards -->
+      <div class="section">
+        <div class="section-hdr"><h3>YTD Commission by Carrier</h3></div>
+        <div class="section-body"><div id="ytdCarrierCards" class="carrier-cards"></div></div>
+      </div>
+      <!-- YTD Charts -->
+      <div class="section"><div class="section-hdr"><h3>YTD Commission Trend</h3></div><div class="section-body">
+        <div class="chart-grid">
+          <div class="chart-box"><canvas id="ch-ytd-bar"></canvas></div>
+          <div class="chart-box"><canvas id="ch-ytd-cum"></canvas></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- TAB 3: All-Time Totals -->
+    <div class="tab-page" id="page-alltime">
+      <div class="kpi-row" id="kpis-alltime"></div>
+      <!-- All-Time Carrier cards -->
+      <div class="section">
+        <div class="section-hdr"><h3>All-Time Commission by Carrier</h3></div>
+        <div class="section-body"><div id="allCarrierCards" class="carrier-cards"></div></div>
+      </div>
+      <!-- All-Time Charts -->
+      <div class="section"><div class="section-hdr"><h3>All-Time Commission Analytics</h3></div><div class="section-body">
+        <div class="chart-grid">
+          <div class="chart-box"><canvas id="ch-all-carrier"></canvas></div>
+          <div class="chart-box"><canvas id="ch-all-cum"></canvas></div>
+        </div>
+      </div></div>
+      <!-- Plan Type (bottom, muted) -->
+      <div class="section" style="opacity:.7;">
+        <div class="section-hdr"><h3 style="color:var(--g500);">By Plan Type</h3></div>
+        <div class="section-body"><div id="planTypeCards" class="carrier-cards"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header"><h2 id="modalTitle">Edit Client</h2><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="edit-hint">Auto-calculated fields update when you save.</div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label>Name</label><input type="text" id="ed-name"></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="ed-phone"></div>
+        <div class="form-group"><label>Policy Status</label>
+          <select id="ed-status">
+            <option>Active</option><option>Pending First Payment</option><option>Pending Requirement</option>
+            <option>Payment Failed - Lapse Warning</option><option>Lapsed</option><option>Cancelled</option><option>Declined</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Carrier</label>
+          <select id="ed-carrier">
+            <option>AIG</option><option>RNA</option><option>AHL</option><option>AMAM</option><option>Transamerica</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Plan Type</label>
+          <select id="ed-plan">
+            <option>Level</option><option>Graded</option><option>GI</option><option>Standard</option><option>Modified</option><option>ROP</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Monthly Premium</label><input type="number" step="0.01" id="ed-premium"></div>
+        <div class="form-group"><label>Date of Sale</label><input type="date" id="ed-dos"></div>
+        <div class="form-group"><label>First Draft Date</label><input type="date" id="ed-draft"></div>
+        <div class="form-group full"><label>Notes</label><textarea id="ed-notes"></textarea></div>
+        <div class="form-group full"><label>Retention Notes</label><textarea id="ed-retnotes"></textarea></div>
+        <div class="form-group"><label>Annual Premium</label><div class="calc-val" id="ed-ann">$0.00</div></div>
+        <div class="form-group"><label>Advanced Commission</label><div class="calc-val" id="ed-adv">$0.00</div></div>
+        <div class="form-group"><label>Total Commission</label><div class="calc-val" id="ed-tot">$0.00</div></div>
+        <div class="form-group"><label>Remaining Commission</label><div class="calc-val" id="ed-rem">$0.00</div></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green btn-sm" id="modalSaveBtn" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+let clients=[], sortCol=null, sortDir=1, aFilt='upcoming', editIdx=-1, hasUnsaved=false;
+const EXCL=['Cancelled','Lapsed','Declined'];
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const rates={
+  "AHL|Level":{a:.75,c:.85},"AHL|Modified":{a:.75,c:.85},"AHL|Standard":{a:.75,c:.85},
+  "AIG|GI":{a:.50,c:.45},"AIG|Graded":{a:.50,c:.56},"AIG|Level":{a:.50,c:.90},"AIG|Standard":{a:.50,c:.90},
+  "AMAM|Graded":{a:.75,c:.90},"AMAM|Level":{a:.75,c:.90},"AMAM|ROP":{a:.75,c:.90},
+  "RNA|GI":{a:.75,c:.11},"RNA|Graded":{a:.75,c:.55},"RNA|Level":{a:.75,c:.90},"RNA|Standard":{a:.75,c:.90},
+  "Transamerica|Graded":{a:.50,c:.56},"Transamerica|Level":{a:.50,c:.90},"Transamerica|Standard":{a:.50,c:.90}
+};
+const cMap={'AiG':'AIG','Amam':'AMAM','AmAm':'AMAM','TransAmerica':'Transamerica','TA':'Transamerica'};
+const pMap={'Gi':'GI','graded':'Graded'};
+const QUICK=['AMAM','RNA'];
+
+const $v=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function curYear(){return new Date().getFullYear();}
+
+/* ===== FILE IMPORT (CSV + XLSX) ===== */
+document.getElementById('fi').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const ext=f.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    Papa.parse(f,{header:true,skipEmptyLines:true,complete:r=>{clients=norm(r.data);init();}});
+  } else {
+    // XLSX import via SheetJS
+    const reader=new FileReader();
+    reader.onload=function(e){
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      // Try 'Client List' sheet first, fall back to first sheet
+      const sheetName=wb.SheetNames.includes('Client List')?'Client List':wb.SheetNames[0];
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{defval:''});
+      clients=norm(rows);init();
+    };
+    reader.readAsArrayBuffer(f);
+  }
+});
+
+/* ===== AIRTABLE LIVE FETCH ===== */
+const AT_TOKEN=(()=>{let t=sessionStorage.getItem('AT_TOKEN');if(!t){t=prompt('Enter your Airtable Personal Access Token:');if(t)sessionStorage.setItem('AT_TOKEN',t);}return t||'';})();
+const AT_BASE='appK65HG3vNZebZLu';
+const AT_TABLE='tblsUWdPEPGmCtKFO';
+const AT_URL=`https://api.airtable.com/v0/${AT_BASE}/${AT_TABLE}`;
+
+async function fetchAirtable(){
+  let allRecords=[], offset=null;
+  do {
+    const url=new URL(AT_URL);
+    url.searchParams.set('pageSize','100');
+    if(offset) url.searchParams.set('offset',offset);
+    const resp=await fetch(url,{headers:{'Authorization':`Bearer ${AT_TOKEN}`}});
+    if(!resp.ok) throw new Error('Airtable API error: '+resp.status);
+    const data=await resp.json();
+    allRecords=allRecords.concat(data.records);
+    offset=data.offset||null;
+  } while(offset);
+  // Convert Airtable records to our row format
+  return allRecords.map(r=>{
+    const f=r.fields||{};
+    return {
+      'Date of Sale': f['Date of Sale']||'',
+      'Name': f['Name']||'',
+      'Phone Number': f['Phone Number']||'',
+      'Policy Status': f['Policy Status']||'',
+      'Plan Type': f['Plan Type']||'',
+      'Carrier': f['Carrier']||'',
+      'Monthly Premium': f['Monthly Premium']||0,
+      'First Draft Date': f['First Draft Date']||'',
+      'Notes': f['Notes']||'',
+      'Retention Notes': f['Retention Notes']||'',
+      '_airtableId': r.id
+    };
+  }).filter(r=>r['Name']);
+}
+
+/* ===== PRE-BAKED DATA (fallback if Airtable is unreachable) ===== */
+// __PREBAKED_DATA__ is replaced at build time with actual JSON array
+const PREBAKED_DATA = [{"Date of Sale": "11/02/2025", "Name": "Daniel L Neumeister", "Phone Number": "", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 78.0, "First Draft Date": "12/01/2025", "Notes": "Daniel L Neumeister", "Retention Notes": "12/02/2025"}, {"Date of Sale": "", "Name": "Michael Raymond", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/01/2025", "Notes": "", "Retention Notes": "Mike -Informed for the payment , we might need to change the drafte to 2nd wednesday of every month , as he gets payed every 2 weeks"}, {"Date of Sale": "", "Name": "Margaret Smith", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "Initial Payment Failed - Account Closed", "Retention Notes": "talked with her , she got a new account will  be able to sort this"}, {"Date of Sale": "11/06/2025", "Name": "Joseph Parker", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 64.71, "First Draft Date": "12/03/2025", "Notes": "Submitted AIG, put placeholder DOB's for beneficiaries, need to get their real bday and call AIG", "Retention Notes": ""}, {"Date of Sale": "11/06/2025", "Name": "Albert Castaneda", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "RNA", "Monthly Premium": 73.25, "First Draft Date": "11/16/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "11/07/2025", "Name": "Timothy Johnson", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Standard", "Carrier": "AIG", "Monthly Premium": 35.15, "First Draft Date": "12/03/2025", "Notes": "", "Retention Notes": "Mike- looks good for the payment was saying did not get the policy packet tho."}, {"Date of Sale": "11/10/2025", "Name": "Njideka Odiana", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 78.95, "First Draft Date": "12/03/2025", "Notes": "Submitted AIG, she wants additional coverage but RNA only qualifies for GI", "Retention Notes": "Mike -informed her regarding her payments looks good for it , she got the policy papers as well."}, {"Date of Sale": "", "Name": "Janis Meza", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "First Payment Failed - Lapse Warning  - Insufficient Funds", "Retention Notes": ""}, {"Date of Sale": "11/16/2025", "Name": "Herbert Burrell", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 46.24, "First Draft Date": "12/03/2025", "Notes": "I had to put Herbet's birthday for his Wife's bday in beneficairy info, need to get her bday to correct - 6/26/1966", "Retention Notes": "Mike- informed him regarding the paymetns looks good"}, {"Date of Sale": "11/20/2025", "Name": "Nancy Anderson", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 85.8, "First Draft Date": "12/03/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Richard Stein", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "First Payment Failed - Lapse Warning  - Credit Card floor", "Retention Notes": ""}, {"Date of Sale": "11/07/2025", "Name": "Sophia Gerant", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Standard", "Carrier": "RNA", "Monthly Premium": 139.55, "First Draft Date": "12/04/2025", "Notes": "", "Retention Notes": "Mike - good to go , customer said i think they did charge the payment and got the policy packet"}, {"Date of Sale": "11/19/2025", "Name": "Patrick Mavone", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "Transamerica", "Monthly Premium": 35.78, "First Draft Date": "12/04/2025", "Notes": "First Payment Failed - Lapse Warning  - he got new card and have to update AIG", "Retention Notes": ""}, {"Date of Sale": "11/15/2025", "Name": "Leslie Carr", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 44.42, "First Draft Date": "12/12/2025", "Notes": "", "Retention Notes": "Mike- Informed her regarding the payment looks good , said did not get the paper work tho , Email the policy on alex.fant123@gmail.com"}, {"Date of Sale": "11/12/2025", "Name": "Doreen Jones", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 48.0, "First Draft Date": "11/26/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "11/06/2025", "Name": "Felicia Neal", "Phone Number": "574) 339-9932", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "RNA", "Monthly Premium": 40.0, "First Draft Date": "12/03/2025", "Notes": "Pending Indiana license to come in - declined standard, have to go GI due to dementia", "Retention Notes": ""}, {"Date of Sale": "11/19/2025", "Name": "Mildred Alshton", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 79.11, "First Draft Date": "12/15/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "11/20/2025", "Name": "Seneda Vierra", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 56.0, "First Draft Date": "12/15/2025", "Notes": "", "Retention Notes": "Mike - informed for the payment looks good"}, {"Date of Sale": "", "Name": "Cynthia L Bethea", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "11/03/2025", "Notes": "11/11 - left voicemail to cancel. Working to retain", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Debra Limani", "Phone Number": "", "Policy Status": "", "Plan Type": "Level", "Carrier": "AMAM", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "AIG does not take bank, cannot submit RNA, declined Amam - only option is to get a CC for AIG", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Annie Powell", "Phone Number": "", "Policy Status": "", "Plan Type": "Standard", "Carrier": "Transamerica", "Monthly Premium": 53.28, "First Draft Date": "12/03/2025", "Notes": "DECLINED TRANSAMERICA - only have DE card, she has maxed out AIG", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Dwayne Doolittle", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "Already has GI coverage, can't submite", "Retention Notes": ""}, {"Date of Sale": "11/15/2025", "Name": "Rosezine Lindsay", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 106.34, "First Draft Date": "12/03/2025", "Notes": "Put placeholder brithdays for beneficiaries - need tp update", "Retention Notes": "Mike- Informed her regarding the payment looks good , said did not get the paper work tho"}, {"Date of Sale": "", "Name": "Mona Benitez", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "Payment failed - INS funds", "Retention Notes": ""}, {"Date of Sale": "11/29/2025", "Name": "Diana Cross", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 38.26, "First Draft Date": "12/03/2025", "Notes": "", "Retention Notes": "missed payment 3/3/2026"}, {"Date of Sale": "", "Name": "Judy Mattera", "Phone Number": "", "Policy Status": "Cancelled", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "First Payment Failed - Lapse Warning  Account Closed", "Retention Notes": ""}, {"Date of Sale": "11/11/2025", "Name": "Terry Nations", "Phone Number": "", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 105.0, "First Draft Date": "12/04/2025", "Notes": "First Payment Failed - Lapse Warning  Insufficient Funds - Called AIG to re-draft on 1/3", "Retention Notes": "Mike - working with him ,"}, {"Date of Sale": "", "Name": "Daisy Singleton", "Phone Number": "", "Policy Status": "", "Plan Type": "Modified", "Carrier": "AHL", "Monthly Premium": 0, "First Draft Date": "12/04/2025", "Notes": "Declined AHL - likely have to go GI", "Retention Notes": ""}, {"Date of Sale": "12/02/2025", "Name": "Charlotte Johnson", "Phone Number": "", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 53.5, "First Draft Date": "12/04/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "11/24/2025", "Name": "Loretta Stubb", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 43.0, "First Draft Date": "12/10/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "11/29/2025", "Name": "Lucinda Whitehead", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 60.8, "First Draft Date": "12/10/2025", "Notes": "", "Retention Notes": "Mike- missed payment 3/3/2026"}, {"Date of Sale": "", "Name": "Rodney Smith", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "ROP", "Carrier": "AMAM", "Monthly Premium": 0, "First Draft Date": "12/10/2025", "Notes": "Declined Amam, AHL due to crebral paulsy & CHF, only option is GI", "Retention Notes": ""}, {"Date of Sale": "12/08/2025", "Name": "Nancy Webre", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 51.73, "First Draft Date": "01/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Mattie Ollison", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/17/2025", "Notes": "AIG won't accept bank, RNA not available in AL - re-assess", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Edward Taylor", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "RNA", "Monthly Premium": 0, "First Draft Date": "11/24/2025", "Notes": "Already has GI cannot submit", "Retention Notes": ""}, {"Date of Sale": "11/29/2025", "Name": "Larry Hart", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 62.91, "First Draft Date": "12/15/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "11/24/2025", "Name": "Claudette Star", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 58.24, "First Draft Date": "12/17/2025", "Notes": "", "Retention Notes": "Mike - Informed her looks good for the payment , got the policy packet too checked with her , said we can charge her today just for this month had put $400 rn in her account"}, {"Date of Sale": "12/01/2025", "Name": "Charlotte Bass", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 81.8, "First Draft Date": "12/17/2025", "Notes": "First Payment Failed - Lapse Warning  - invalid account number", "Retention Notes": ""}, {"Date of Sale": "12/08/2025", "Name": "Melvin Holmes Jr", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 62.56, "First Draft Date": "12/24/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "11/29/2025", "Name": "Elnora Stewart", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "RNA", "Monthly Premium": 36.62, "First Draft Date": "12/28/2025", "Notes": "", "Retention Notes": "Mike - looks good for the payment and is happy as well about the policy"}, {"Date of Sale": "", "Name": "George P Dickens", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "11/03/2025", "Notes": "Already has GI coverage", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Brenda Frazier", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "Denied Simplified Issue, she already had GI so cannot submit anything else", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Jimmie Qualls", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "Has alzheimer's denied Amam, cannot submit RNA GI, AIG does not accept US Bank, can't submit anything", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Susan Henard", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "Recent AIG GI app, not able to submit", "Retention Notes": ""}, {"Date of Sale": "11/29/2025", "Name": "Sheena Thornton", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "Modified", "Carrier": "AHL", "Monthly Premium": 39.51, "First Draft Date": "", "Notes": "Pending underwriting review", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Braenda Strenge", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": "Already has GI policy, cannot take out more"}, {"Date of Sale": "12/01/2025", "Name": "nn", "Phone Number": "", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "12/03/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/11/2025", "Name": "Jeanie Fullbrigh", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Modified", "Carrier": "AHL", "Monthly Premium": 45.16, "First Draft Date": "12/30/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/12/2025", "Name": "Dexter Taylor", "Phone Number": "4704790907", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 62.93, "First Draft Date": "01/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/12/2025", "Name": "Alusha Davis", "Phone Number": "8105772375", "Policy Status": "Lapsed", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 45.0, "First Draft Date": "12/24/2025", "Notes": "First Payment Failed - Lapse Warning  - INS funds", "Retention Notes": "Mike -Talked to her said she did not get her money for December so could not make the payment , working on this to get the payment"}, {"Date of Sale": "12/16/2025", "Name": "Lori Geisler", "Phone Number": "", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 37.11, "First Draft Date": "01/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Colin Logan", "Phone Number": "", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 73.87, "First Draft Date": "01/14/2026", "Notes": "ave to talk to Roberta, if going AHL will need picutre of Colin's ID", "Retention Notes": ""}, {"Date of Sale": "12/21/2025", "Name": "Winnell Foskey", "Phone Number": "4782996344", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "RNA", "Monthly Premium": 72.0, "First Draft Date": "01/01/2026", "Notes": "", "Retention Notes": "M- Got the policy packet , if we can move the drafte to the 30th for her she will get payed , and wanted to do one for the son too if we can get him"}, {"Date of Sale": "12/22/2025", "Name": "Kathryn Duggan", "Phone Number": "", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 89.93, "First Draft Date": "12/24/2025", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/22/2025", "Name": "Charlie Woodard", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 59.67, "First Draft Date": "01/01/2026", "Notes": "Updated with AIG to re-draft on 2/3", "Retention Notes": "Mike - talked to her she can make 2 payments on the 3rd of Feb and drafte will always be on the 3rd of each month , instead of 1st of each Month"}, {"Date of Sale": "12/22/2025", "Name": "David Goodwin", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "01/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/23/2025", "Name": "James Foskey", "Phone Number": "4782996344", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 74.0, "First Draft Date": "01/19/2026", "Notes": "", "Retention Notes": "Need to change the draft to 1st of each month"}, {"Date of Sale": "12/27/2025", "Name": "Michael O'neall", "Phone Number": "6602240908", "Policy Status": "Lapsed", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 78.0, "First Draft Date": "01/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/29/2025", "Name": "Annette Pompey", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 56.23, "First Draft Date": "01/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/29/2025", "Name": "Jody Brown", "Phone Number": "6617488482/6613723073", "Policy Status": "Active", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 72.09, "First Draft Date": "01/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/30/2025", "Name": "Ronald Fite", "Phone Number": "", "Policy Status": "Active", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 94.78, "First Draft Date": "01/15/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/30/2025", "Name": "Donella Nealey", "Phone Number": "", "Policy Status": "Lapsed", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 36.17, "First Draft Date": "01/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "12/31/2025", "Name": "Brenda Holt", "Phone Number": "3256475758", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 116.82, "First Draft Date": "01/21/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/02/2026", "Name": "Joyce McElwee", "Phone Number": "7865324716", "Policy Status": "Payment Failed - Lapse Warning", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 122.09, "First Draft Date": "01/26/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/06/2025", "Name": "Cynthia Ghee", "Phone Number": "9047151794", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 63.72, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/06/2025", "Name": "Sharon Rivas", "Phone Number": "", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 81.84, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/06/2026", "Name": "James Taylor", "Phone Number": "6123102087", "Policy Status": "Payment Failed - Lapse Warning", "Plan Type": "Level", "Carrier": "AMAM", "Monthly Premium": 61.81, "First Draft Date": "02/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/06/2026", "Name": "Syreta Claridy", "Phone Number": "3866781909", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 111.0, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": "Mike - informed her about the coverage she got approved for 50k and looks good for the payment"}, {"Date of Sale": "", "Name": "Robert Mccombie", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 0, "First Draft Date": "01/15/2026", "Notes": "", "Retention Notes": "Declined due to exceeding coverage"}, {"Date of Sale": "", "Name": "Kimberly Strobhart", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": "Cannot submit, already has GI"}, {"Date of Sale": "01/15/2026", "Name": "Joyce Vandiver", "Phone Number": "9015965557", "Policy Status": "Cancelled", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 62.3, "First Draft Date": "02/15/2026", "Notes": "", "Retention Notes": "Mike - working on to fix this"}, {"Date of Sale": "01/07/2026", "Name": "Sally Ann Honeycutt", "Phone Number": "5405787429", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AMAM", "Monthly Premium": 83.6, "First Draft Date": "01/21/2026", "Notes": "", "Retention Notes": "Mike - updated her that she is approved and told her would be drafting the payments this month"}, {"Date of Sale": "01/12/2026", "Name": "Joseph Campbell", "Phone Number": "3608215298", "Policy Status": "Payment Failed - Lapse Warning", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 66.3, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Robert Brown", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": "Already have GI policy"}, {"Date of Sale": "", "Name": "Donald J Mocarski", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": "Already have GI policy"}, {"Date of Sale": "", "Name": "Linda Ann Sheffield", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": "Declined for SI, already has GI policy"}, {"Date of Sale": "", "Name": "Pamela J Youngman", "Phone Number": "2533343767", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AMAM", "Monthly Premium": 60.94, "First Draft Date": "02/15/2026", "Notes": "", "Retention Notes": "Mike- Informed her about the policy and payments good to go"}, {"Date of Sale": "01/15/2026", "Name": "Isaiah B Bradford Jr", "Phone Number": "7736217020", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 109.15, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": "Ready to submit RNA Level - just need physician info --   || Doctor : Dr. Rachel Yohannan Jesse Brown VA Medical Center 820 South Damen Avenue, Chicago, IL, 60612"}, {"Date of Sale": "", "Name": "Freida G Maybank", "Phone Number": "8438690061", "Policy Status": "Declined", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": "Already has GI policy"}, {"Date of Sale": "", "Name": "Margaret Campbell", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 0, "First Draft Date": "02/23/2026", "Notes": "", "Retention Notes": "Declined for all plans due to medication for dementia/alzheimer"}, {"Date of Sale": "", "Name": "Gary Adams", "Phone Number": "4157158330", "Policy Status": "Declined", "Plan Type": "Standard", "Carrier": "Transamerica", "Monthly Premium": 0, "First Draft Date": "02/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Mary Dutton", "Phone Number": "4043387205", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 52.0, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": "informed him about the draft, good to go-  Marshall 02/02/2026"}, {"Date of Sale": "01/19/2026", "Name": "Lisa McDonald", "Phone Number": "7196498117", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "AMAM", "Monthly Premium": 38.69, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/20/2026", "Name": "Elizabeth Sanford", "Phone Number": "", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 69.13, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/23/2026", "Name": "Robert Brown", "Phone Number": "6617488482", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 71.45, "First Draft Date": "02/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/26/2026", "Name": "April Taulbee", "Phone Number": "6062720905", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 61.2, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": "Mike - AIg drafted the 1st payment , called and she was pretty happy"}, {"Date of Sale": "01/28/2026", "Name": "Vicki Landes", "Phone Number": "4085449187", "Policy Status": "Declined", "Plan Type": "Graded", "Carrier": "AMAM", "Monthly Premium": 40.0, "First Draft Date": "02/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/29/2026", "Name": "Loretta Sizemore", "Phone Number": "8645090236", "Policy Status": "Declined", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 0, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "01/29/2026", "Name": "Margaret Smith", "Phone Number": "3232170518", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 52.0, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": "Mike - Aig drafted her good to go , happy with the coverage"}, {"Date of Sale": "01/29/2026", "Name": "Sharon Greene", "Phone Number": "4107335640", "Policy Status": "", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 66.0, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": "Already has RNA coverage, requires a wet signature, will have to go elsewhere"}, {"Date of Sale": "01/29/2026", "Name": "Manfred Tinei", "Phone Number": "4246242539", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 51.77, "First Draft Date": "02/03/2026", "Notes": "", "Retention Notes": "informed him about the draft, good to go- Marshall 02/02/2026"}, {"Date of Sale": "02/02/2026", "Name": "Richard Garcia", "Phone Number": "6618613024", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 43.85, "First Draft Date": "02/28/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "02/02/2026", "Name": "Eddie Phillips", "Phone Number": "5127627059", "Policy Status": "Active", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 112.9, "First Draft Date": "02/04/2026", "Notes": "", "Retention Notes": "He was pretty angry that we changed him on the 1st and will cancle the policy - Mike"}, {"Date of Sale": "02/02/2026", "Name": "August Griffing", "Phone Number": "", "Policy Status": "", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "01/15/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "02/02/2026", "Name": "Pamela Sinclair", "Phone Number": "4049854279", "Policy Status": "Lapsed", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 45.45, "First Draft Date": "02/14/2026", "Notes": "", "Retention Notes": "Date of Return: 02/18/2026_x000D_"}, {"Date of Sale": "02/02/2026", "Name": "Dana Mitchell", "Phone Number": "3526740026", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 55.74, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Debra Taylor", "Phone Number": "5739419275", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 86.26, "First Draft Date": "03/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Charlie Glover", "Phone Number": "4783206928", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 88.45, "First Draft Date": "03/05/2026", "Notes": "", "Retention Notes": "Talked to him look good for the payment - Mike 8/27/2026"}, {"Date of Sale": "", "Name": "Ralph Thompson", "Phone Number": "7246620741", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 56.19, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Missing DOB || 05/31/1953"}, {"Date of Sale": "", "Name": "Ronald Swing", "Phone Number": "3093688157", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 59.95, "First Draft Date": "03/15/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Marion Atkins", "Phone Number": "2564669498", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 44.54, "First Draft Date": "03/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Kathleen Gillette", "Phone Number": "2723090137", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 43.44, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Jannette L Colon", "Phone Number": "5704274524 / 2723425394", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 45.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Have to resubmit elsewhere"}, {"Date of Sale": "", "Name": "Beatrice Lisa Thompson", "Phone Number": "9034933965", "Policy Status": "Lapsed", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 50.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Declined SI, have to go GI"}, {"Date of Sale": "", "Name": "William Miller", "Phone Number": "3098571653", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 48.95, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Hazel Shelton", "Phone Number": "", "Policy Status": "Declined", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 45.9, "First Draft Date": "03/21/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Jimmy Kitchens", "Phone Number": "6012730347", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 65.02, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Kenneth Moody", "Phone Number": "5802163919", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 104.2, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Mike- Provide Credit Card Authorization || talked to him will check back on in a few days said will call the bank and let them know"}, {"Date of Sale": "", "Name": "Cachira Faulcon", "Phone Number": "4106503567", "Policy Status": "Pending Requirement", "Plan Type": "Graded", "Carrier": "Transamerica", "Monthly Premium": 36.99, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Anna Corbin", "Phone Number": "8128479636", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 36.27, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Patricia Perez", "Phone Number": "8302199808", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 63.47, "First Draft Date": "03/15/2026", "Notes": "", "Retention Notes": "Her mother passed away 2/12/2026 - Mike"}, {"Date of Sale": "", "Name": "Pauline Attaway", "Phone Number": "5109137947", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 46.89, "First Draft Date": "02/15/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "", "Name": "Lucine Garris", "Phone Number": "8034203513", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 48.85, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Mike - submited her myself , (Your application is complete! The policy number is 7260034435.)"}, {"Date of Sale": "", "Name": "Anthony R Adkins", "Phone Number": "7408587012", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 38.26, "First Draft Date": "03/10/2026", "Notes": "", "Retention Notes": "Mike - submited him myself , (Your application is complete! )"}, {"Date of Sale": "", "Name": "David Christensen", "Phone Number": "7154193913", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 43.95, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Mike -Your application is complete! The policy number is 7260036682.|| Fully completed Bank Draft Auth and copy of Void Check are required.(AIG Update)"}, {"Date of Sale": "", "Name": "Willie J Brown", "Phone Number": "6788364630", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 95.67, "First Draft Date": "03/01/2026", "Notes": "", "Retention Notes": "Mike - Your application is complete! The policy number is 6260032267.|| Fully completed Bank Draft Auth and copy of Void Check are required."}, {"Date of Sale": "", "Name": "Kevin E Campbell", "Phone Number": "9122368620", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 95.95, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Mike-Policy NumerAMH6297182"}, {"Date of Sale": "02/12/2026", "Name": "Thomas Clinger", "Phone Number": "8143197269", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 55.92, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260032683 || Fully completed Bank Draft Auth and copy of Void Check are required. (Aig update)"}, {"Date of Sale": "02/12/2026", "Name": "Norval Q Hitchcock Sr", "Phone Number": "3134692317", "Policy Status": "Lapsed", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 68.65, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260032461.         Provide Credit Card Authorization (AIG)"}, {"Date of Sale": "02/12/2026", "Name": "Sandy D Vandevender", "Phone Number": "8037711319", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 47.6, "First Draft Date": "", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260032600. Fully completed Bank Draft Auth and copy of Void Check are required. (Aig update)"}, {"Date of Sale": "02/11/2026", "Name": "Verena T Smith", "Phone Number": "4054327685", "Policy Status": "Cancelled", "Plan Type": "Standard", "Carrier": "AHL", "Monthly Premium": 66.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Mike- submitted it my self"}, {"Date of Sale": "02/13/2026", "Name": "Debra k Taylor", "Phone Number": "5739419275", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 80.0, "First Draft Date": "03/01/2026", "Notes": "", "Retention Notes": "Mike- The certificate number is: 000008241534 || Daughter (Twyla Glendening) 1/5/1979 need to update Daughets dob"}, {"Date of Sale": "", "Name": "Tracie L Boush", "Phone Number": "4439832951", "Policy Status": "Pending First Payment", "Plan Type": "Standard", "Carrier": "RNA", "Monthly Premium": 51.0, "First Draft Date": "03/10/2026", "Notes": "", "Retention Notes": "Mike- 000008241841approved for standard RNA"}, {"Date of Sale": "02/13/2026", "Name": "James A Norini", "Phone Number": "6303106758", "Policy Status": "Pending First Payment", "Plan Type": "Standard", "Carrier": "RNA", "Monthly Premium": 108.0, "First Draft Date": "03/01/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "02/16/2026", "Name": "Winzena M Smith/Sophia Grant", "Phone Number": "6145989231", "Policy Status": "Pending Requirement", "Plan Type": "Standard", "Carrier": "RNA", "Monthly Premium": 260.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Mike - State ID FL : S530880516660 (Wenzina Smith)  Exp :  5/6/2029  New account : Bank : Bank of America (checking account)  RT - 071214579    ACC - 374010381872"}, {"Date of Sale": "02/16/2026", "Name": "Jose Trevino", "Phone Number": "9202960612", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 134.0, "First Draft Date": "03/05/2026", "Notes": "", "Retention Notes": "Mike- Your application is complete! The policy number is 7260040930."}, {"Date of Sale": "02/17/2026", "Name": "Denise Yvette Louis", "Phone Number": "9012127444", "Policy Status": "Cancelled", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 25.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Mike -Your application is complete! The policy number is 7260041726.|| need to provide ID or drivers Lic  and also said need to provide if customer is keeping this extra coverage , has 2 active 10k policies with AIG"}, {"Date of Sale": "02/17/2026", "Name": "Havand L Hibbler", "Phone Number": "9893923091", "Policy Status": "Cancelled", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 112.53, "First Draft Date": "03/10/2026", "Notes": "", "Retention Notes": "submitted him today with AHL got Date:2/25/2026 AMH6300091 , gave him RNA before  but it remained pending for too long"}, {"Date of Sale": "", "Name": "Larry L Whitt", "Phone Number": "2709947201", "Policy Status": "Declined", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 55.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "02/18/2026", "Name": "August Griffing", "Phone Number": "2038287883", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "AMAM", "Monthly Premium": 120.0, "First Draft Date": "03/15/2026", "Notes": "", "Retention Notes": "Mike -did text to sign worked fine , app sent to home office || apporve for ROP need to reconsider"}, {"Date of Sale": "02/18/2026", "Name": "Roberta J Ashley'Williams", "Phone Number": "7045832141", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 155.47, "First Draft Date": "03/11/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260043685."}, {"Date of Sale": "02/19/2026", "Name": "Deborah Lynn Cain", "Phone Number": "7408859185", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 38.0, "First Draft Date": "03/01/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260038069."}, {"Date of Sale": "02/19/2026", "Name": "Peggy J Taylor", "Phone Number": "2283424899", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 67.68, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260044434."}, {"Date of Sale": "02/19/2026", "Name": "Darlene K Souder", "Phone Number": "2567391633", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 50.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Updated account : 357292175 on the app the account number is incorrected || Your application is complete! The policy number is 6260038627."}, {"Date of Sale": "02/19/2026", "Name": "James L Souder", "Phone Number": "2567391633", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 48.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Updated account : 357292175 on the app the account number is incorrected || Your application is complete! The policy number is 6260039118."}, {"Date of Sale": "02/19/2026", "Name": "Bonnie L Powell", "Phone Number": "5804616409", "Policy Status": "Declined", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": "Declined AHL"}, {"Date of Sale": "02/20/2026", "Name": "Pennie S Huckaby", "Phone Number": "9014935329", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 72.0, "First Draft Date": "03/15/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260039387."}, {"Date of Sale": "", "Name": "Wanda Gaines", "Phone Number": "2152516501", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 38.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "_x000D_ The certificate number is: 000008245819"}, {"Date of Sale": "02/23/2026", "Name": "Omar A Reid", "Phone Number": "4109946334", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "RNA", "Monthly Premium": 73.63, "First Draft Date": "03/05/2026", "Notes": "", "Retention Notes": "Mike - policy number 000008246767"}, {"Date of Sale": "02/23/2026", "Name": "Yolanda L Allen", "Phone Number": "4439029731", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 49.95, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "02/23/2026", "Name": "Otis Sanks", "Phone Number": "7063042899", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 79.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "The certificate number is: 000008248704"}, {"Date of Sale": "02/24/2026", "Name": "Mary Albritton", "Phone Number": "6013842515", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 70.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "The certificate number is: 000008247172"}, {"Date of Sale": "02/24/2026", "Name": "Anna M Hernandez", "Phone Number": "8135310635", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 48.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260043517."}, {"Date of Sale": "02/25/2026", "Name": "Patricia E Phillips", "Phone Number": "3179641814", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 109.0, "First Draft Date": "02/27/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260050779."}, {"Date of Sale": "02/25/2026", "Name": "Anne M Rowley", "Phone Number": "9102714233", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 41.0, "First Draft Date": "03/05/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260050847."}, {"Date of Sale": "02/25/2026", "Name": "Janice K Gilligan", "Phone Number": "7792792469", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 52.0, "First Draft Date": "03/15/2026", "Notes": "", "Retention Notes": "Quintin Submitted it her him self || Your application is complete! The policy number is 7260052151."}, {"Date of Sale": "02/26/2026", "Name": "Linda A Carter", "Phone Number": "8034770673", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "RNA", "Monthly Premium": 97.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "The certificate number is: 000008249027"}, {"Date of Sale": "02/26/2026", "Name": "Michael D Roy", "Phone Number": "2286271434", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 57.0, "First Draft Date": "03/01/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260052230."}, {"Date of Sale": "02/26/2026", "Name": "Earnest W Parrish Jr", "Phone Number": "2038503850", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 38.0, "First Draft Date": "03/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260044888."}, {"Date of Sale": "03/03/2026", "Name": "Warrena Drumming", "Phone Number": "2405842905", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 56.23, "First Draft Date": "04/01/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260056321. , Submitted 3/3/2026 forgot to submit before"}, {"Date of Sale": "", "Name": "Rilda M Lekhrajmal", "Phone Number": "2038503850", "Policy Status": "Pending Requirement", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/02/2026", "Name": "Sheri K Ledet", "Phone Number": "9857751388", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 90.0, "First Draft Date": "04/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260055320. (first Draft today 3/2/2026"}, {"Date of Sale": "03/02/2026", "Name": "Henry J Adcock Jr", "Phone Number": "4058815599", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 54.0, "First Draft Date": "04/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260057680."}, {"Date of Sale": "03/02/2026", "Name": "Deanna J Adcock", "Phone Number": "4058815599", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 43.81, "First Draft Date": "04/03/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/03/2026", "Name": "Catherine Elaine Koontz", "Phone Number": "5758088608", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 112.0, "First Draft Date": "03/25/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/03/2026", "Name": "Rickey D Koontz", "Phone Number": "5758088608", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 95.0, "First Draft Date": "03/25/2026", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/04/2026", "Name": "Deloris Butler", "Phone Number": "7736102741", "Policy Status": "Pending First Payment", "Plan Type": "Level", "Carrier": "AIG", "Monthly Premium": 73.0, "First Draft Date": "04/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260058248."}, {"Date of Sale": "03/04/2026", "Name": "Denise B Jackson", "Phone Number": "8035309241", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 57.17, "First Draft Date": "04/01/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260058156. || cancelled her OLD AIG policy and then submitted this"}, {"Date of Sale": "03/04/2026", "Name": "Ray V Jackson", "Phone Number": "3464794478", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 81.83, "First Draft Date": "04/06/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260049433."}, {"Date of Sale": "03/05/2026", "Name": "Michelle Gordon", "Phone Number": "3308094858", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 76.0, "First Draft Date": "04/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260051002."}, {"Date of Sale": "03/05/2026", "Name": "Jeanne E Orosco", "Phone Number": "8055450144", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "Transamerica", "Monthly Premium": 34.95, "First Draft Date": "", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/06/2026", "Name": "Cindy L Winchell", "Phone Number": "9104458809", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 42.0, "First Draft Date": "04/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260051838."}, {"Date of Sale": "03/06/2026", "Name": "John P Johnston", "Phone Number": "7576344283", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "Transamerica", "Monthly Premium": 0, "First Draft Date": "", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/06/2026", "Name": "Jacklyn D Eidem", "Phone Number": "5416597763", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 58.0, "First Draft Date": "04/03/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260060254."}, {"Date of Sale": "03/09/2026", "Name": "Norma Houston", "Phone Number": "4152407375", "Policy Status": "Pending First Payment", "Plan Type": "GI", "Carrier": "AIG", "Monthly Premium": 90.0, "First Draft Date": "04/07/2026", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 6260053318."}, {"Date of Sale": "03/09/2026", "Name": "Stephanie Anne Hester", "Phone Number": "7068199252", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "AHL", "Monthly Premium": 56.0, "First Draft Date": "", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/09/2026", "Name": "Ruth M  Law", "Phone Number": "2173713730", "Policy Status": "Pending Requirement", "Plan Type": "Level", "Carrier": "Transamerica", "Monthly Premium": 59.0, "First Draft Date": "", "Notes": "", "Retention Notes": ""}, {"Date of Sale": "03/10/2026", "Name": "Daniel H Coleman", "Phone Number": "8622184497", "Policy Status": "Pending First Payment", "Plan Type": "Graded", "Carrier": "AIG", "Monthly Premium": 128.0, "First Draft Date": "", "Notes": "", "Retention Notes": "Your application is complete! The policy number is 7260063333."}];
+
+let dataSource='none';
+window.addEventListener('DOMContentLoaded',async ()=>{
+  // Try Airtable first (live data)
+  try {
+    const rows=await fetchAirtable();
+    if(rows.length>0){
+      clients=norm(rows);
+      dataSource='airtable';
+      init();
+      showToast('Live data loaded from Airtable ('+clients.length+' clients)');
+      return;
+    }
+  } catch(e){
+    console.warn('Airtable fetch failed, falling back to pre-baked data:',e);
+  }
+  // Fallback to pre-baked data
+  if(PREBAKED_DATA && PREBAKED_DATA.length > 0){
+    clients=norm(PREBAKED_DATA);
+    dataSource='prebaked';
+    init();
+    showToast('Loaded from saved data ('+clients.length+' clients)');
+  }
+});
+
+function refreshData(){
+  document.getElementById('fi').value='';
+  document.getElementById('fi').click();
+}
+
+async function syncAirtable(){
+  showToast('Syncing from Airtable...');
+  try {
+    const rows=await fetchAirtable();
+    if(rows.length>0){
+      clients=norm(rows);
+      dataSource='airtable';
+      hasUnsaved=false;
+      document.getElementById('unsavedBadge').classList.add('hidden');
+      init();
+      showToast('Synced '+clients.length+' clients from Airtable');
+    } else {
+      showToast('No records found in Airtable');
+    }
+  } catch(e){
+    showToast('Sync failed — check console for details');
+    console.error('Airtable sync error:',e);
+  }
+}
+
+function fv(r,ks){for(const k of ks){if(r[k]!==undefined&&r[k]!==null&&r[k]!=='')return r[k];}
+  for(const key of Object.keys(r)){const lo=key.toLowerCase().replace(/[^a-z]/g,'');for(const k of ks){if(lo===k.toLowerCase().replace(/[^a-z]/g,''))return r[key];}}return null;}
+function pm(v){if(!v)return 0;const n=parseFloat(String(v).replace(/[$,]/g,''));return isNaN(n)?0:n;}
+function pd(v){if(!v)return null;const d=new Date(v);return isNaN(d)?null:d;}
+
+function calcCommission(c){
+  c.annualPremium=c.monthlyPremium*12;
+  const rt=rates[c.carrier+'|'+c.planType]||{a:.5,c:.5};
+  c.advComm=c.annualPremium*rt.a*rt.c;
+  c.totalComm=c.annualPremium*rt.c;
+  c.remainComm=c.totalComm-c.advComm;
+  c.earnedDate=QUICK.includes(c.carrier)?c.dateOfSale:c.draftDate;
+  const today=new Date();today.setHours(0,0,0,0);
+  c.daysUntilDraft=c.draftDate?Math.ceil((c.draftDate-today)/864e5):null;
+  c.draftStr=c.draftDate?c.draftDate.toLocaleDateString('en-US'):'';
+}
+
+function norm(rows){
+  return rows.map((r,i)=>{
+    let car=fv(r,['Carrier','carrier'])||''; car=cMap[car]||car;
+    let plan=fv(r,['Plan Type','plan_type'])||''; plan=pMap[plan]||plan;
+    const mo=pm(fv(r,['Monthly Premium','Premium','monthly_premium']));
+    const dos=pd(fv(r,['Date of Sale','date_of_sale']));
+    const draft=pd(fv(r,['First Draft Date','Draft Date','first_draft_date']));
+    const c={id:i+1,dateOfSale:dos,name:fv(r,['Name','Client Name','name'])||'',phone:fv(r,['Phone Number','phone'])||'',
+      status:fv(r,['Policy Status','status'])||'',planType:plan,carrier:car,monthlyPremium:mo,
+      annualPremium:0,draftDate:draft,draftStr:'',daysUntilDraft:null,
+      advComm:0,totalComm:0,remainComm:0,earnedDate:null,
+      notes:fv(r,['Notes','notes'])||'',retNotes:fv(r,['Retention Notes','retention_notes'])||'',
+      _airtableId:r._airtableId||r['_airtableId']||null};
+    calcCommission(c);
+    return c;
+  }).filter(c=>c.name);
+}
+
+function loadDemo(){
+  const n=["Daniel Neumeister","Michael Raymond","Joseph Parker","Albert Castaneda","Timothy Johnson","Njideka Odiana","Herbert Burrell","Nancy Anderson","Richard Stein","Linda Foster","Patricia Coleman","James Anderson","Mary Williams","Robert Davis","Sandra Moore","Thomas Taylor","Dorothy White","George Martinez","Helen Clark","Ruth Law"];
+  const cr=["AIG","AIG","AIG","RNA","AIG","AIG","AIG","AIG","AIG","AHL","RNA","AIG","AMAM","AIG","RNA","Transamerica","AIG","AIG","RNA","AHL"];
+  const pl=["GI","GI","Graded","Level","Level","Graded","Graded","GI","Level","Level","Level","GI","Level","Level","Standard","Level","GI","Level","Graded","Level"];
+  const st=["Active","Cancelled","Active","Active","Active","Active","Active","Pending First Payment","Active","Pending First Payment","Active","Payment Failed - Lapse Warning","Active","Lapsed","Pending Requirement","Active","Pending First Payment","Active","Declined","Active"];
+  const pr=[78,0,64.71,73.25,35.15,78.95,46.24,52,55.5,85,55.5,92,120,68,88.5,42,63.25,95,0,75];
+  const rows=n.map((nm,i)=>({"Date of Sale":new Date(2025,10,2+i*3).toLocaleDateString('en-US'),"Name":nm,"Phone Number":`(555) ${300+i}-${4000+i*100}`,"Policy Status":st[i],"Plan Type":pl[i],"Carrier":cr[i],"Monthly Premium":pr[i],"First Draft Date":new Date(2026,0,5+i*5).toLocaleDateString('en-US'),"Notes":"","Retention Notes":st[i]==="Payment Failed - Lapse Warning"?"Called - updating bank info":""}));
+  clients=norm(rows);init();
+}
+
+/* ===== TAB SWITCHING ===== */
+function switchTab(tab,btn){
+  document.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('page-'+tab).classList.add('active');
+  renderTab(tab);
+}
+
+function renderTab(tab){
+  if(tab==='overview') renderOverview();
+  else if(tab==='ytd') renderYTD();
+  else if(tab==='alltime') renderAllTime();
+}
+
+/* ===== INIT ===== */
+function init(){
+  document.getElementById('uz').classList.add('hidden');
+  document.getElementById('dc').classList.remove('hidden');
+  document.getElementById('exportBtn').style.display='inline-block';
+  document.getElementById('refreshBtn').style.display='inline-block';
+  document.getElementById('syncBtn').style.display='inline-block';
+  // Data source badge
+  const badge=document.getElementById('srcBadge');
+  badge.style.display='inline-block';
+  if(dataSource==='airtable'){badge.textContent='LIVE';badge.style.background='#00B050';badge.style.color='#fff';}
+  else if(dataSource==='prebaked'){badge.textContent='SAVED';badge.style.background='#F0AD4E';badge.style.color='#fff';}
+  else{badge.textContent='FILE';badge.style.background='#2E5090';badge.style.color='#fff';}
+  document.getElementById('upd').textContent='Updated: '+new Date().toLocaleString();
+  const mk=(arr,el)=>{el.innerHTML='<option value="">All</option>'+[...new Set(arr)].filter(Boolean).sort().map(s=>`<option>${s}</option>`).join('');};
+  mk(clients.map(c=>c.status),document.getElementById('fS'));
+  mk(clients.map(c=>c.carrier),document.getElementById('fC'));
+  mk(clients.map(c=>c.planType),document.getElementById('fP'));
+  renderOverview();
+}
+
+function eligible(){return clients.filter(c=>!EXCL.includes(c.status));}
+function ytdEligible(){const yr=curYear();return eligible().filter(c=>c.earnedDate&&c.earnedDate.getFullYear()===yr);}
+
+/* ===== OVERVIEW TAB ===== */
+let charts={};
+function destroyCharts(){Object.values(charts).forEach(c=>c.destroy());charts={};}
+
+function renderOverview(){
+  const el=eligible(),t=clients.length,e=el.length;
+  const act=clients.filter(c=>c.status==='Active').length;
+  const fail=clients.filter(c=>c.status==='Payment Failed - Lapse Warning').length;
+  const lapsed=clients.filter(c=>c.status==='Lapsed').length;
+  const pend=clients.filter(c=>c.status==='Pending First Payment').length;
+  const up=clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=7).length;
+  const tAdv=el.reduce((s,c)=>s+c.advComm,0);
+  const tTot=el.reduce((s,c)=>s+c.totalComm,0);
+  const ks=[
+    {l:'Eligible Clients',v:e,c:'',s:`${t} total, ${t-e} excluded`},
+    {l:'Active Policies',v:act,c:'good'},
+    {l:'Pending 1st Pmt',v:pend,c:pend?'warn':''},
+    {l:'Failed / At Risk',v:fail+lapsed,c:(fail+lapsed)?'alert':'',s:`${fail} failed, ${lapsed} lapsed`},
+    {l:'Drafts in 7 Days',v:up,c:up?'warn':'',s:'Prep call needed'},
+    {l:'Total Adv Comm',v:$v(tAdv),c:'good'},
+    {l:'Total Commission',v:$v(tTot),c:''},
+  ];
+  document.getElementById('kpis-overview').innerHTML=ks.map(k=>`<div class="kpi ${k.c}"><div class="lbl">${k.l}</div><div class="val">${k.v}</div>${k.s?`<div class="sub">${k.s}</div>`:''}</div>`).join('');
+  rAlerts();rTable();
+
+  // Charts
+  destroyCharts();
+  // Carrier bar
+  const byCar={};el.forEach(c=>{if(!byCar[c.carrier])byCar[c.carrier]={adv:0,tot:0};byCar[c.carrier].adv+=c.advComm;byCar[c.carrier].tot+=c.totalComm;});
+  const cL=Object.keys(byCar).sort((a,b)=>byCar[b].tot-byCar[a].tot);
+  charts.c1=new Chart(document.getElementById('ch-carrier'),{type:'bar',data:{labels:cL,datasets:[{label:'Adv Commission',data:cL.map(l=>byCar[l].adv),backgroundColor:'#2E5090',borderRadius:4},{label:'Total Commission',data:cL.map(l=>byCar[l].tot),backgroundColor:'#00B050',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Commission by Carrier (Eligible)'}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
+  // Status pie
+  const bySt={};clients.forEach(c=>{bySt[c.status]=(bySt[c.status]||0)+1;});
+  const sC={'Active':'#00B050','Pending First Payment':'#F0AD4E','Pending Requirement':'#FFC107','Payment Failed - Lapse Warning':'#E74C3C','Lapsed':'#ED7D31','Cancelled':'#6B7280','Declined':'#9CA3AF'};
+  charts.c2=new Chart(document.getElementById('ch-status'),{type:'doughnut',data:{labels:Object.keys(bySt),datasets:[{data:Object.values(bySt),backgroundColor:Object.keys(bySt).map(s=>sC[s]||'#999')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Policy Status Distribution'}}}});
+}
+
+/* ===== YTD TAB ===== */
+function renderYTD(){
+  const yr=curYear();
+  document.getElementById('ytdYear').textContent=yr;
+  const ytd=ytdEligible();
+  const yAdv=ytd.reduce((s,c)=>s+c.advComm,0);
+  const yTot=ytd.reduce((s,c)=>s+c.totalComm,0);
+  const yRem=ytd.reduce((s,c)=>s+c.remainComm,0);
+  const ks=[
+    {l:'YTD Policies Earned',v:ytd.length,c:'good',s:yr+' earned commissions'},
+    {l:'YTD Adv Commission',v:$v(yAdv),c:'good'},
+    {l:'YTD Total Commission',v:$v(yTot),c:''},
+    {l:'YTD Remaining',v:$v(yRem),c:''},
+  ];
+  document.getElementById('kpis-ytd').innerHTML=ks.map(k=>`<div class="kpi ${k.c}"><div class="lbl">${k.l}</div><div class="val">${k.v}</div>${k.s?`<div class="sub">${k.s}</div>`:''}</div>`).join('');
+
+  // Monthly table
+  const curMo=new Date().getMonth();
+  const buckets=MONTHS.map(()=>({count:0,adv:0,tot:0,rem:0}));
+  ytd.forEach(c=>{const m=c.earnedDate.getMonth();buckets[m].count++;buckets[m].adv+=c.advComm;buckets[m].tot+=c.totalComm;buckets[m].rem+=c.remainComm;});
+  let cumAdv=0,cumTot=0,totPol=0,totAdv=0,totTot2=0,totRem=0;
+  let html='<thead><tr><th style="text-align:left">Month</th><th># Policies</th><th>Adv Commission</th><th>Total Commission</th><th>Remaining</th><th>Cumulative Adv</th><th>Cumulative Total</th></tr></thead><tbody>';
+  MONTHS.forEach((m,i)=>{
+    cumAdv+=buckets[i].adv;cumTot+=buckets[i].tot;totPol+=buckets[i].count;totAdv+=buckets[i].adv;totTot2+=buckets[i].tot;totRem+=buckets[i].rem;
+    const future=i>curMo;
+    html+=`<tr class="${future?'future':''}"><td>${m}</td><td style="text-align:right">${buckets[i].count}</td><td style="text-align:right">${$v(buckets[i].adv)}</td><td style="text-align:right">${$v(buckets[i].tot)}</td><td style="text-align:right">${$v(buckets[i].rem)}</td><td style="text-align:right">${$v(cumAdv)}</td><td style="text-align:right">${$v(cumTot)}</td></tr>`;
+  });
+  html+=`<tr class="total-row"><td>TOTAL</td><td style="text-align:right">${totPol}</td><td style="text-align:right">${$v(totAdv)}</td><td style="text-align:right">${$v(totTot2)}</td><td style="text-align:right">${$v(totRem)}</td><td></td><td></td></tr></tbody>`;
+  document.getElementById('monthlyTbl').innerHTML=html;
+
+  // YTD Carrier cards
+  buildCarrierCards(ytd,'ytdCarrierCards');
+
+  // YTD Charts
+  destroyCharts();
+  const mData=MONTHS.map((_,i)=>buckets[i]);
+  const activeMonths=MONTHS.filter((_,i)=>mData[i].count>0);
+  charts.ytdBar=new Chart(document.getElementById('ch-ytd-bar'),{type:'bar',data:{labels:activeMonths,datasets:[{label:'Adv Commission',data:activeMonths.map(m=>mData[MONTHS.indexOf(m)].adv),backgroundColor:'#2E5090',borderRadius:4},{label:'Total Commission',data:activeMonths.map(m=>mData[MONTHS.indexOf(m)].tot),backgroundColor:'rgba(0,176,80,0.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Monthly Earned Commission — '+yr}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
+  let ca=0,ct=0;const cumA=[],cumT=[];
+  activeMonths.forEach(m=>{const i=MONTHS.indexOf(m);ca+=mData[i].adv;ct+=mData[i].tot;cumA.push(ca);cumT.push(ct);});
+  charts.ytdCum=new Chart(document.getElementById('ch-ytd-cum'),{type:'line',data:{labels:activeMonths,datasets:[{label:'Cumulative Adv',data:cumA,borderColor:'#2E5090',backgroundColor:'rgba(46,80,144,.1)',fill:true,tension:.3},{label:'Cumulative Total',data:cumT,borderColor:'#00B050',backgroundColor:'rgba(0,176,80,.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Cumulative Earned — '+yr}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
+}
+
+/* ===== ALL-TIME TAB ===== */
+function renderAllTime(){
+  const el=eligible();
+  const tAdv=el.reduce((s,c)=>s+c.advComm,0);
+  const tTot=el.reduce((s,c)=>s+c.totalComm,0);
+  const tRem=el.reduce((s,c)=>s+c.remainComm,0);
+  const tAnn=el.reduce((s,c)=>s+c.annualPremium,0);
+  const avg=el.length>0?tAdv/el.length:0;
+  const ks=[
+    {l:'Eligible Clients',v:el.length,c:'',s:`${clients.length} total, ${clients.length-el.length} excluded`},
+    {l:'Total Annual Premium',v:$v(tAnn),c:''},
+    {l:'Total Adv Commission',v:$v(tAdv),c:'good'},
+    {l:'Total Commission',v:$v(tTot),c:''},
+    {l:'Remaining Commission',v:$v(tRem),c:'good'},
+    {l:'Avg Adv / Client',v:$v(avg),c:''},
+  ];
+  document.getElementById('kpis-alltime').innerHTML=ks.map(k=>`<div class="kpi ${k.c}"><div class="lbl">${k.l}</div><div class="val">${k.v}</div>${k.s?`<div class="sub">${k.s}</div>`:''}</div>`).join('');
+
+  buildCarrierCards(el,'allCarrierCards');
+  buildPlanCards(el);
+
+  // All-time charts
+  destroyCharts();
+  const byCar={};el.forEach(c=>{if(!byCar[c.carrier])byCar[c.carrier]={adv:0,tot:0};byCar[c.carrier].adv+=c.advComm;byCar[c.carrier].tot+=c.totalComm;});
+  const cL=Object.keys(byCar).sort((a,b)=>byCar[b].tot-byCar[a].tot);
+  charts.allCar=new Chart(document.getElementById('ch-all-carrier'),{type:'bar',data:{labels:cL,datasets:[{label:'Adv Commission',data:cL.map(l=>byCar[l].adv),backgroundColor:'#2E5090',borderRadius:4},{label:'Total Commission',data:cL.map(l=>byCar[l].tot),backgroundColor:'#00B050',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'All-Time Commission by Carrier'}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
+  // Cumulative over all time
+  const byMonth={};
+  el.filter(c=>c.earnedDate).forEach(c=>{
+    const key=c.earnedDate.toLocaleString('en-US',{month:'short',year:'2-digit'});
+    const sk=c.earnedDate.getFullYear()*100+c.earnedDate.getMonth();
+    if(!byMonth[key])byMonth[key]={adv:0,tot:0,sort:sk};
+    byMonth[key].adv+=c.advComm;byMonth[key].tot+=c.totalComm;
+  });
+  const mKeys=Object.keys(byMonth).sort((a,b)=>byMonth[a].sort-byMonth[b].sort);
+  let ca2=0,ct2=0;const cumA2=[],cumT2=[];
+  mKeys.forEach(k=>{ca2+=byMonth[k].adv;ct2+=byMonth[k].tot;cumA2.push(ca2);cumT2.push(ct2);});
+  charts.allCum=new Chart(document.getElementById('ch-all-cum'),{type:'line',data:{labels:mKeys,datasets:[{label:'Cumulative Adv',data:cumA2,borderColor:'#2E5090',backgroundColor:'rgba(46,80,144,.1)',fill:true,tension:.3},{label:'Cumulative Total',data:cumT2,borderColor:'#00B050',backgroundColor:'rgba(0,176,80,.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'All-Time Cumulative Earned Commission'}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
+}
+
+function buildCarrierCards(pool,containerId){
+  const byCar={};
+  pool.forEach(c=>{
+    if(!byCar[c.carrier])byCar[c.carrier]={count:0,ann:0,adv:0,tot:0,rem:0};
+    const b=byCar[c.carrier];b.count++;b.ann+=c.annualPremium;b.adv+=c.advComm;b.tot+=c.totalComm;b.rem+=c.remainComm;
+  });
+  const sorted=Object.entries(byCar).sort((a,b)=>b[1].tot-a[1].tot);
+  document.getElementById(containerId).innerHTML=sorted.map(([name,d])=>`<div class="carrier-card">
+    <div class="cc-name">${name}</div>
+    <div class="cc-row"><span>Policies</span><span class="cc-val">${d.count}</span></div>
+    <div class="cc-row"><span>Annual Premium</span><span class="cc-val">${$v(d.ann)}</span></div>
+    <div class="cc-row"><span>Adv Commission</span><span class="cc-val">${$v(d.adv)}</span></div>
+    <div class="cc-row"><span>Total Commission</span><span class="cc-val">${$v(d.tot)}</span></div>
+    <div class="cc-row"><span>Remaining</span><span class="cc-val">${$v(d.rem)}</span></div>
+  </div>`).join('');
+}
+
+function buildPlanCards(pool){
+  const byPlan={};
+  pool.forEach(c=>{
+    if(!byPlan[c.planType])byPlan[c.planType]={count:0,adv:0};
+    byPlan[c.planType].count++;byPlan[c.planType].adv+=c.advComm;
+  });
+  const sorted=Object.entries(byPlan).sort((a,b)=>b[1].adv-a[1].adv);
+  document.getElementById('planTypeCards').innerHTML=sorted.map(([name,d])=>`<div class="carrier-card">
+    <div class="cc-name">${name}</div>
+    <div class="cc-row"><span>Policies</span><span class="cc-val">${d.count}</span></div>
+    <div class="cc-row"><span>Adv Commission</span><span class="cc-val">${$v(d.adv)}</span></div>
+  </div>`).join('');
+}
+
+/* ===== ALERTS ===== */
+function daysSince(d){
+  if(!d)return null;
+  const today=new Date();today.setHours(0,0,0,0);
+  return Math.floor((today-d)/864e5);
+}
+
+function rAlerts(){
+  const today=new Date();today.setHours(0,0,0,0);
+  let a=[];
+
+  // Upcoming Drafts: draft within next 14 days
+  clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=3).forEach(c=>{
+    a.push({t:'urgent',txt:`<strong>${c.name}</strong> — Draft in <strong>${c.daysUntilDraft} day(s)</strong>. Confirm funds.`,ph:c.phone,cat:'upcoming',sub:c.carrier+' · '+c.planType});
+  });
+  clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>3&&c.daysUntilDraft<=7).forEach(c=>{
+    a.push({t:'warn',txt:`<strong>${c.name}</strong> — Draft in ${c.daysUntilDraft} days.`,ph:c.phone,cat:'upcoming',sub:c.carrier+' · '+c.planType});
+  });
+  clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>7&&c.daysUntilDraft<=14).forEach(c=>{
+    a.push({t:'info',txt:`<strong>${c.name}</strong> — Draft in ${c.daysUntilDraft} days.`,ph:c.phone,cat:'upcoming',sub:c.carrier+' · '+c.planType});
+  });
+
+  // Needs Attention: payment failed + pending requirements
+  clients.filter(c=>c.status==='Payment Failed - Lapse Warning').forEach(c=>{
+    a.push({t:'urgent',txt:`<strong>${c.name}</strong> — Payment failed. Retention call needed.`,ph:c.phone,cat:'attention',sub:c.carrier+' · '+c.planType});
+  });
+  clients.filter(c=>c.status==='Pending Requirement').forEach(c=>{
+    a.push({t:'warn',txt:`<strong>${c.name}</strong> — Pending requirement.`,ph:c.phone,cat:'attention',sub:c.carrier+' · '+c.planType});
+  });
+
+  // Recently Lost (<60 days): Lapsed, Cancelled, or Declined within the last 60 days
+  const LOST=['Lapsed','Cancelled','Declined'];
+  clients.filter(c=>LOST.includes(c.status)).forEach(c=>{
+    const refDate=c.draftDate||c.dateOfSale;
+    const age=daysSince(refDate);
+    if(age!==null&&age<=60){
+      const lbl=c.status==='Lapsed'?'Policy lapsed':c.status==='Cancelled'?'Policy cancelled':'Policy declined';
+      a.push({t:c.status==='Lapsed'?'urgent':'warn',txt:`<strong>${c.name}</strong> — ${lbl} (${age} days ago). Re-engage opportunity.`,ph:c.phone,cat:'recent',sub:c.carrier+' · '+c.planType});
+    }
+  });
+
+  // Older Lost (60+ days)
+  clients.filter(c=>LOST.includes(c.status)).forEach(c=>{
+    const refDate=c.draftDate||c.dateOfSale;
+    const age=daysSince(refDate);
+    if(age===null||age>60){
+      const lbl=c.status==='Lapsed'?'Policy lapsed':c.status==='Cancelled'?'Policy cancelled':'Policy declined';
+      const ageStr=age!==null?age+' days ago':'date unknown';
+      a.push({t:'info',txt:`<strong>${c.name}</strong> — ${lbl} (${ageStr}).`,ph:c.phone,cat:'older',sub:c.carrier+' · '+c.planType});
+    }
+  });
+
+  // Filter by selected tab
+  let f;
+  if(aFilt==='all') f=a;
+  else f=a.filter(x=>x.cat===aFilt);
+
+  // Count badges for tabs
+  const counts={upcoming:0,attention:0,recent:0,older:0};
+  a.forEach(x=>{if(counts[x.cat]!==undefined)counts[x.cat]++;});
+  document.querySelectorAll('#alertTabs .stab').forEach(btn=>{
+    const cat=btn.getAttribute('onclick').match(/'(\w+)'/)[1];
+    const existing=btn.textContent.replace(/\s*\(\d+\)/,'');
+    if(cat!=='all'&&counts[cat]!==undefined) btn.textContent=existing+' ('+counts[cat]+')';
+  });
+
+  document.getElementById('alerts').innerHTML=f.length?f.map(x=>`<div class="alert-item"><div class="alert-dot ${x.t}"></div><div class="alert-text">${x.txt}<div style="font-size:11px;color:var(--g500);margin-top:2px;">${x.sub||''}</div></div><span class="alert-phone">${x.ph}</span></div>`).join(''):'<div class="empty">No alerts in this category.</div>';
+}
+function fAlert(t,b){aFilt=t;document.querySelectorAll('#alertTabs .stab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rAlerts();}
+
+/* ===== CLIENT TABLE ===== */
+function rTable(){
+  const sf=document.getElementById('fS').value,cf=document.getElementById('fC').value,pf=document.getElementById('fP').value,qf=document.getElementById('fQ').value.toLowerCase();
+  let d=clients.map((c,i)=>({...c,_idx:i})).filter(c=>{if(sf&&c.status!==sf)return false;if(cf&&c.carrier!==cf)return false;if(pf&&c.planType!==pf)return false;if(qf&&!c.name.toLowerCase().includes(qf))return false;return true;});
+  if(sortCol)d.sort((a,b)=>{let va=a[sortCol],vb=b[sortCol];if(va==null)return 1;if(vb==null)return-1;return(typeof va==='string'?va.localeCompare(vb):(va-vb))*sortDir;});
+  document.getElementById('cc').textContent=`${d.length} of ${clients.length} clients`;
+  const cols=[{k:'name',l:'Name'},{k:'status',l:'Status'},{k:'planType',l:'Plan'},{k:'carrier',l:'Carrier'},{k:'monthlyPremium',l:'Premium',f:'$'},{k:'annualPremium',l:'Annual',f:'$'},{k:'draftStr',l:'Draft Date'},{k:'daysUntilDraft',l:'Days to Draft'},{k:'advComm',l:'Adv Comm',f:'$'},{k:'totalComm',l:'Total Comm',f:'$'},{k:'remainComm',l:'Remaining',f:'$'}];
+  document.getElementById('th').innerHTML='<tr>'+cols.map(c=>`<th style="cursor:pointer" onclick="doSort('${c.k}')">${c.l}${sortCol===c.k?(sortDir===1?' ▲':' ▼'):''}</th>`).join('')+'</tr>';
+  document.getElementById('tb').innerHTML=d.map(r=>'<tr class="clickable-row" onclick="openEdit('+r._idx+')">'+cols.map(c=>{let v=r[c.k];if(c.k==='status')return`<td>${sBadge(v)}</td>`;if(c.k==='daysUntilDraft'){if(v===null)return'<td>—</td>';return`<td class="${v<=3?'draft-urgent':v<=7?'draft-warning':''}">${v}d</td>`;}if(c.f==='$')return`<td>${$v(v||0)}</td>`;return`<td>${v||'—'}</td>`;}).join('')+'</tr>').join('');
+}
+function sBadge(s){const m={'Active':'active','Pending First Payment':'pending','Pending Requirement':'pending','Payment Failed - Lapse Warning':'failed','Lapsed':'lapsed','Cancelled':'cancelled','Declined':'declined'};return`<span class="badge badge-${m[s]||'pending'}">${s}</span>`;}
+function doSort(c){if(sortCol===c)sortDir*=-1;else{sortCol=c;sortDir=1;}rTable();}
+
+/* ===== EDIT MODAL ===== */
+function dtToInput(d){if(!d)return '';const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return`${y}-${m}-${dd}`;}
+function inputToDt(s){if(!s)return null;const d=new Date(s+'T12:00:00');return isNaN(d)?null:d;}
+
+function openEdit(idx){
+  editIdx=idx;
+  const c=clients[idx];
+  document.getElementById('modalTitle').textContent='Edit: '+c.name;
+  document.getElementById('ed-name').value=c.name;
+  document.getElementById('ed-phone').value=c.phone;
+  document.getElementById('ed-status').value=c.status;
+  document.getElementById('ed-carrier').value=c.carrier;
+  document.getElementById('ed-plan').value=c.planType;
+  document.getElementById('ed-premium').value=c.monthlyPremium||'';
+  document.getElementById('ed-dos').value=dtToInput(c.dateOfSale);
+  document.getElementById('ed-draft').value=dtToInput(c.draftDate);
+  document.getElementById('ed-notes').value=c.notes;
+  document.getElementById('ed-retnotes').value=c.retNotes;
+  updateCalcPreview();
+  document.getElementById('editModal').classList.add('open');
+  // Live preview on changes
+  ['ed-premium','ed-carrier','ed-plan'].forEach(id=>{
+    document.getElementById(id).oninput=updateCalcPreview;
+    document.getElementById(id).onchange=updateCalcPreview;
+  });
+}
+
+function updateCalcPreview(){
+  const mo=parseFloat(document.getElementById('ed-premium').value)||0;
+  const car=document.getElementById('ed-carrier').value;
+  const plan=document.getElementById('ed-plan').value;
+  const ann=mo*12;
+  const rt=rates[car+'|'+plan]||{a:.5,c:.5};
+  const adv=ann*rt.a*rt.c, tot=ann*rt.c, rem=tot-adv;
+  document.getElementById('ed-ann').textContent=$v(ann);
+  document.getElementById('ed-adv').textContent=$v(adv);
+  document.getElementById('ed-tot').textContent=$v(tot);
+  document.getElementById('ed-rem').textContent=$v(rem);
+}
+
+let isNewClient=false;
+
+function openNewClient(){
+  isNewClient=true;
+  editIdx=-1;
+  document.getElementById('modalTitle').textContent='Add New Client';
+  document.getElementById('ed-name').value='';
+  document.getElementById('ed-phone').value='';
+  document.getElementById('ed-status').value='Pending First Payment';
+  document.getElementById('ed-carrier').value='AIG';
+  document.getElementById('ed-plan').value='Level';
+  document.getElementById('ed-premium').value='';
+  document.getElementById('ed-dos').value=new Date().toISOString().slice(0,10);
+  document.getElementById('ed-draft').value='';
+  document.getElementById('ed-notes').value='';
+  document.getElementById('ed-retnotes').value='';
+  document.getElementById('modalSaveBtn').textContent='Add Client';
+  updateCalcPreview();
+  document.getElementById('editModal').classList.add('open');
+  ['ed-premium','ed-carrier','ed-plan'].forEach(id=>{
+    document.getElementById(id).oninput=updateCalcPreview;
+    document.getElementById(id).onchange=updateCalcPreview;
+  });
+  document.getElementById('ed-name').focus();
+}
+
+function closeModal(){
+  document.getElementById('editModal').classList.remove('open');
+  document.getElementById('modalSaveBtn').textContent='Save Changes';
+  editIdx=-1;
+  isNewClient=false;
+}
+
+async function saveEdit(){
+  if(isNewClient) return saveNewClient();
+  if(editIdx<0)return;
+  const c=clients[editIdx];
+  c.name=document.getElementById('ed-name').value.trim();
+  c.phone=document.getElementById('ed-phone').value.trim();
+  c.status=document.getElementById('ed-status').value;
+  c.carrier=document.getElementById('ed-carrier').value;
+  c.planType=document.getElementById('ed-plan').value;
+  c.monthlyPremium=parseFloat(document.getElementById('ed-premium').value)||0;
+  c.dateOfSale=inputToDt(document.getElementById('ed-dos').value);
+  c.draftDate=inputToDt(document.getElementById('ed-draft').value);
+  c.notes=document.getElementById('ed-notes').value;
+  c.retNotes=document.getElementById('ed-retnotes').value;
+  calcCommission(c);
+  closeModal();
+
+  // Re-render immediately (optimistic update)
+  const activeTab=document.querySelector('.main-tab.active').textContent.trim().toLowerCase().replace(/[- ]/g,'');
+  const tabMap={'overview':'overview','yeartodate':'ytd','alltimetotals':'alltime'};
+  renderTab(tabMap[activeTab]||'overview');
+
+  // Push to Airtable if we have a record ID
+  if(c._airtableId){
+    showToast('Saving to Airtable...');
+    try {
+      const fields={};
+      fields['fldFOieTf6s33Zh5H']=c.name;
+      fields['fldpiQMl2AuchN71e']=c.phone;
+      fields['fldPMjDjZqGagXCoG']=c.status;
+      fields['fld4j8siSHbGXE4Zn']=c.planType;
+      fields['fldxzNq2rxWOpGRzw']=c.carrier;
+      fields['fldshPdxtBFDNFwZ4']=c.monthlyPremium;
+      if(c.dateOfSale) fields['fld0Yes1DcGtXBhMg']=c.dateOfSale.toISOString().slice(0,10);
+      if(c.draftDate) fields['fldZKTzazCeajbkG0']=c.draftDate.toISOString().slice(0,10);
+      fields['fld13GSJp6pHwfaxG']=c.notes;
+      // If Retention Notes field exists, send it separately
+      // For now, append to Notes if retNotes has content
+      if(c.retNotes && !c.notes.includes(c.retNotes)){
+        fields['fld13GSJp6pHwfaxG']=c.notes+(c.notes?'\n':'')+c.retNotes;
+      }
+
+      const resp=await fetch(AT_URL,{
+        method:'PATCH',
+        headers:{'Authorization':`Bearer ${AT_TOKEN}`,'Content-Type':'application/json'},
+        body:JSON.stringify({records:[{id:c._airtableId,fields}],typecast:true})
+      });
+      if(!resp.ok) throw new Error('Status '+resp.status);
+      showToast('Saved to Airtable: '+c.name);
+      hasUnsaved=false;
+      document.getElementById('unsavedBadge').classList.add('hidden');
+    } catch(e){
+      console.error('Airtable save error:',e);
+      showToast('Saved locally — Airtable sync failed (will retry on next sync)');
+      hasUnsaved=true;
+      document.getElementById('unsavedBadge').classList.remove('hidden');
+    }
+  } else {
+    showToast('Client updated locally: '+c.name);
+    hasUnsaved=true;
+    document.getElementById('unsavedBadge').classList.remove('hidden');
+  }
+}
+
+async function saveNewClient(){
+  const name=document.getElementById('ed-name').value.trim();
+  if(!name){showToast('Name is required');return;}
+
+  const newClient={
+    id:clients.length+1,
+    name:name,
+    phone:document.getElementById('ed-phone').value.trim(),
+    status:document.getElementById('ed-status').value,
+    carrier:document.getElementById('ed-carrier').value,
+    planType:document.getElementById('ed-plan').value,
+    monthlyPremium:parseFloat(document.getElementById('ed-premium').value)||0,
+    dateOfSale:inputToDt(document.getElementById('ed-dos').value),
+    draftDate:inputToDt(document.getElementById('ed-draft').value),
+    draftStr:'',daysUntilDraft:null,
+    annualPremium:0,advComm:0,totalComm:0,remainComm:0,earnedDate:null,
+    notes:document.getElementById('ed-notes').value,
+    retNotes:document.getElementById('ed-retnotes').value,
+    _airtableId:null
+  };
+  calcCommission(newClient);
+  clients.push(newClient);
+  closeModal();
+
+  // Re-render
+  const activeTab=document.querySelector('.main-tab.active').textContent.trim().toLowerCase().replace(/[- ]/g,'');
+  const tabMap={'overview':'overview','yeartodate':'ytd','alltimetotals':'alltime'};
+  renderTab(tabMap[activeTab]||'overview');
+
+  // Push to Airtable
+  showToast('Adding to Airtable...');
+  try {
+    const fields={};
+    fields['fldFOieTf6s33Zh5H']=newClient.name;
+    if(newClient.phone) fields['fldpiQMl2AuchN71e']=newClient.phone;
+    fields['fldPMjDjZqGagXCoG']=newClient.status;
+    fields['fld4j8siSHbGXE4Zn']=newClient.planType;
+    fields['fldxzNq2rxWOpGRzw']=newClient.carrier;
+    if(newClient.monthlyPremium) fields['fldshPdxtBFDNFwZ4']=newClient.monthlyPremium;
+    if(newClient.dateOfSale) fields['fld0Yes1DcGtXBhMg']=newClient.dateOfSale.toISOString().slice(0,10);
+    if(newClient.draftDate) fields['fldZKTzazCeajbkG0']=newClient.draftDate.toISOString().slice(0,10);
+    const notesParts=[];
+    if(newClient.notes) notesParts.push(newClient.notes);
+    if(newClient.retNotes) notesParts.push('[Retention] '+newClient.retNotes);
+    if(notesParts.length) fields['fld13GSJp6pHwfaxG']=notesParts.join('\n');
+
+    const resp=await fetch(AT_URL,{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${AT_TOKEN}`,'Content-Type':'application/json'},
+      body:JSON.stringify({records:[{fields}],typecast:true})
+    });
+    if(!resp.ok) throw new Error('Status '+resp.status);
+    const result=await resp.json();
+    // Store the Airtable ID on the new client so future edits sync
+    if(result.records&&result.records[0]){
+      newClient._airtableId=result.records[0].id;
+    }
+    showToast('Added to Airtable: '+newClient.name);
+  } catch(e){
+    console.error('Airtable create error:',e);
+    showToast('Added locally — Airtable sync failed');
+    hasUnsaved=true;
+    document.getElementById('unsavedBadge').classList.remove('hidden');
+  }
+}
+
+// Close modal on overlay click
+document.getElementById('editModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+// Close modal on Escape
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+/* ===== EXPORT CSV ===== */
+function exportCSV(){
+  const headers=['Date of Sale','Name','Phone Number','Policy Status','Plan Type','Carrier','Monthly Premium','First Draft Date','Notes','Retention Notes'];
+  const rows=clients.map(c=>[
+    c.dateOfSale?c.dateOfSale.toLocaleDateString('en-US'):'',
+    c.name,c.phone,c.status,c.planType,c.carrier,c.monthlyPremium,
+    c.draftDate?c.draftDate.toLocaleDateString('en-US'):'',
+    c.notes,c.retNotes
+  ]);
+  let csv=headers.join(',')+'\n';
+  rows.forEach(r=>{csv+=r.map(v=>{const s=String(v||'');return s.includes(',')||s.includes('"')?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')+'\n';});
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='QB_Agency_Clients_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  hasUnsaved=false;
+  document.getElementById('unsavedBadge').classList.add('hidden');
+  showToast('CSV exported successfully');
+}
+
+/* ===== TOAST ===== */
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+</script>
+</body>
+</html>
