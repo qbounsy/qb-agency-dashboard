@@ -51,7 +51,7 @@ Two new linked tables in the existing Airtable base:
 | Description | Long text | Details of the interaction |
 | Timestamp | Date/time | When the activity occurred |
 
-These tables are separate from the clients table to keep Airtable clean and allow tasks/activities to have their own lifecycle. The dashboard fetches and syncs both tables alongside client data.
+These tables are separate from the clients table to keep Airtable clean and allow tasks/activities to have their own lifecycle. Table IDs and field IDs will be hardcoded (matching the existing pattern for the clients table). The actual Airtable table/field IDs must be created and captured before implementation.
 
 ## Tab Structure
 
@@ -97,7 +97,7 @@ Full-width search at top. Instant filtering by name, phone, or carrier as user t
 
 ### Filter Chips
 Single-click toggle chips below search:
-- **Status filters**: Active, Pending, Lapsed, All
+- **Status filters**: Active, Pending (matches "Pending First Payment", "Pending Requirement", and "Payment Failed - Lapse Warning"), Lapsed, All
 - **Carrier filters**: AIG, RNA, AHL, AMAM, Transamerica
 - Multiple chips can be active simultaneously
 
@@ -108,7 +108,7 @@ Simplified table with fewer default columns than current:
 - Click any row to open the client detail panel
 
 ### Client Detail Panel
-Replaces the current edit modal. Slides in or expands to show a full client view:
+Replaces the current edit modal. Implemented as a right-side slide-in drawer (simplest approach for the single-file constraint):
 
 **Info Section**
 - All existing fields: name, phone, carrier, plan type, status, monthly premium, draft date, date of sale, notes, retention notes
