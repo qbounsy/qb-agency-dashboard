@@ -293,6 +293,7 @@ document.getElementById('settingsModal').addEventListener('click',function(e){if
 <script>
 let clients=[], sortCol=null, sortDir=1, aFilt='upcoming', editIdx=-1, hasUnsaved=false;
 let tasks=[], activities=[];
+let activeFilters={statuses:[],carriers:[],search:''};
 const EXCL=['Cancelled','Lapsed','Declined'];
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const rates={
@@ -646,10 +647,80 @@ function setMoneyView(view,btn){
 }
 
 /* ===== STUB RENDER FUNCTIONS (implemented in Tasks 3-5) ===== */
-function renderHome(){ /* TODO: Task 3 */ }
+function renderHome(){
+  const act=eligible();
+  const ytd=ytdEligible();
+  const thisMonth=ytd.filter(c=>{
+    const d=c.earnedDate;
+    return d&&d.getMonth()===new Date().getMonth();
+  });
+  const totalEarned=ytd.reduce((s,c)=>s+c.advComm,0);
+  const monthEarned=thisMonth.reduce((s,c)=>s+c.advComm,0);
+
+  document.getElementById('kpis-home').innerHTML=`
+    <div class="kpi"><div class="lbl">Active Clients</div><div class="val">${act.length}</div></div>
+    <div class="kpi good"><div class="lbl">Active Policies</div><div class="val">${clients.filter(c=>c.status==='Active').length}</div></div>
+    <div class="kpi"><div class="lbl">Total Earned (YTD)</div><div class="val">${$v(totalEarned)}</div></div>
+    <div class="kpi"><div class="lbl">This Month</div><div class="val">${$v(monthEarned)}</div></div>
+  `;
+
+  renderTasks();
+  renderAlerts();
+}
 function renderClients(){ /* TODO: Task 4 */ }
 function renderMoney(){ /* TODO: Task 5 */ }
-function openAddTask(){ /* TODO: Task 3 */ }
+function openAddTask(){
+  const name=prompt('Client name (or leave blank):');
+  const desc=prompt('Task description:');
+  if(!desc) return;
+  const dueDateStr=prompt('Due date (YYYY-MM-DD, or leave blank):');
+  const dueDate=dueDateStr?new Date(dueDateStr+'T12:00:00'):null;
+  const client=name?clients.find(c=>c.name.toLowerCase().includes(name.toLowerCase())):null;
+  createTask(client?client._airtableId:null, client?client.name:(name||''), desc, dueDate, 'manual')
+    .then(()=>{renderHome();showToast('Task created');})
+    .catch(e=>{console.error(e);showToast('Error creating task');});
+}
+
+function renderTasks(){
+  const openTasks=tasks.filter(t=>!t.completed).sort((a,b)=>{
+    if(!a.dueDate) return 1;
+    if(!b.dueDate) return -1;
+    return a.dueDate-b.dueDate;
+  });
+  const container=document.getElementById('tasksList');
+  if(!openTasks.length){
+    container.innerHTML='<div class="empty">No open tasks. Create one or let alerts generate them.</div>';
+    return;
+  }
+  const today=new Date(); today.setHours(0,0,0,0);
+  container.innerHTML=openTasks.map((t,i)=>{
+    const origIdx=tasks.indexOf(t);
+    const overdue=t.dueDate&&t.dueDate<today;
+    const dueToday=t.dueDate&&t.dueDate.toDateString()===today.toDateString();
+    const urgent=overdue||dueToday;
+    const dueLbl=t.dueDate?(overdue?'Overdue':dueToday?'Due today':'Due '+t.dueDate.toLocaleDateString()):'No date';
+    return `<div class="alert-item">
+      <input type="checkbox" onchange="handleCompleteTask(${origIdx})" style="width:18px;height:18px;cursor:pointer;">
+      ${urgent?'<span class="badge badge-failed">URGENT</span>':''}
+      <div class="alert-text"><strong>${t.clientName||'No client'}</strong> — ${t.description}</div>
+      <span style="font-size:12px;color:${urgent?'var(--red)':'var(--g500)'}">${dueLbl}</span>
+    </div>`;
+  }).join('');
+}
+
+async function handleCompleteTask(idx){
+  try{
+    await completeTask(idx);
+    renderHome();
+    showToast('Task completed');
+  }catch(e){console.error(e);showToast('Error completing task');}
+}
+
+function filterByStatus(status){
+  const mapped=status.startsWith('Pending')||status.startsWith('Payment')?'Pending':status;
+  activeFilters={statuses:[mapped],carriers:[],search:''};
+  switchTab('clients',document.querySelectorAll('.main-tab')[1]);
+}
 
 /* ===== INIT ===== */
 function init(){
@@ -694,7 +765,7 @@ function renderOverview(){
     {l:'Total Commission',v:$v(tTot),c:''},
   ];
   document.getElementById('kpis-overview').innerHTML=ks.map(k=>`<div class="kpi ${k.c}"><div class="lbl">${k.l}</div><div class="val">${k.v}</div>${k.s?`<div class="sub">${k.s}</div>`:''}</div>`).join('');
-  rAlerts();rTable();
+  renderAlerts();rTable();
 
   // Charts
   destroyCharts();
@@ -829,68 +900,69 @@ function daysSince(d){
   return Math.floor((today-d)/864e5);
 }
 
-function rAlerts(){
-  const today=new Date();today.setHours(0,0,0,0);
-  let a=[];
+function renderAlerts(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const alerts=[];
 
-  // Upcoming Drafts: draft within next 14 days
-  clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=3).forEach(c=>{
-    a.push({t:'urgent',txt:`<strong>${c.name}</strong> — Draft in <strong>${c.daysUntilDraft} day(s)</strong>. Confirm funds.`,ph:c.phone,cat:'upcoming',sub:c.carrier+' · '+c.planType});
-  });
-  clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>3&&c.daysUntilDraft<=7).forEach(c=>{
-    a.push({t:'warn',txt:`<strong>${c.name}</strong> — Draft in ${c.daysUntilDraft} days.`,ph:c.phone,cat:'upcoming',sub:c.carrier+' · '+c.planType});
-  });
-  clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>7&&c.daysUntilDraft<=14).forEach(c=>{
-    a.push({t:'info',txt:`<strong>${c.name}</strong> — Draft in ${c.daysUntilDraft} days.`,ph:c.phone,cat:'upcoming',sub:c.carrier+' · '+c.planType});
-  });
+  // 1. Payment failures (red)
+  const failed=clients.filter(c=>c.status==='Payment Failed - Lapse Warning');
+  if(failed.length){
+    alerts.push({color:'urgent',text:`${failed.length} payment failure${failed.length>1?'s':''} need attention`,
+      clients:failed,action:'task'});
+  }
 
-  // Needs Attention: payment failed + pending requirements
-  clients.filter(c=>c.status==='Payment Failed - Lapse Warning').forEach(c=>{
-    a.push({t:'urgent',txt:`<strong>${c.name}</strong> — Payment failed. Retention call needed.`,ph:c.phone,cat:'attention',sub:c.carrier+' · '+c.planType});
-  });
-  clients.filter(c=>c.status==='Pending Requirement').forEach(c=>{
-    a.push({t:'warn',txt:`<strong>${c.name}</strong> — Pending requirement.`,ph:c.phone,cat:'attention',sub:c.carrier+' · '+c.planType});
-  });
+  // 2. Upcoming drafts within 7 days (amber)
+  const upcoming=clients.filter(c=>c.status==='Active'&&c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=7);
+  if(upcoming.length){
+    alerts.push({color:'warn',text:`${upcoming.length} draft${upcoming.length>1?'s':''} coming up this week`,
+      clients:upcoming,action:'view'});
+  }
 
-  // Recently Lost (<60 days): Lapsed, Cancelled, or Declined within the last 60 days
-  const LOST=['Lapsed','Cancelled','Declined'];
-  clients.filter(c=>LOST.includes(c.status)).forEach(c=>{
-    const refDate=c.draftDate||c.dateOfSale;
-    const age=daysSince(refDate);
-    if(age!==null&&age<=60){
-      const lbl=c.status==='Lapsed'?'Policy lapsed':c.status==='Cancelled'?'Policy cancelled':'Policy declined';
-      a.push({t:c.status==='Lapsed'?'urgent':'warn',txt:`<strong>${c.name}</strong> — ${lbl} (${age} days ago). Re-engage opportunity.`,ph:c.phone,cat:'recent',sub:c.carrier+' · '+c.planType});
-    }
+  // 3. Recently lapsed <60 days (gray)
+  const lapsed=clients.filter(c=>{
+    if(c.status!=='Lapsed') return false;
+    const dd=c.draftDate||c.dateOfSale;
+    if(!dd) return true;
+    return daysSince(dd)<60;
   });
+  if(lapsed.length){
+    alerts.push({color:'info',text:`${lapsed.length} recently lapsed polic${lapsed.length>1?'ies':'y'}`,
+      clients:lapsed,action:'view'});
+  }
 
-  // Older Lost (60+ days)
-  clients.filter(c=>LOST.includes(c.status)).forEach(c=>{
-    const refDate=c.draftDate||c.dateOfSale;
-    const age=daysSince(refDate);
-    if(age===null||age>60){
-      const lbl=c.status==='Lapsed'?'Policy lapsed':c.status==='Cancelled'?'Policy cancelled':'Policy declined';
-      const ageStr=age!==null?age+' days ago':'date unknown';
-      a.push({t:'info',txt:`<strong>${c.name}</strong> — ${lbl} (${ageStr}).`,ph:c.phone,cat:'older',sub:c.carrier+' · '+c.planType});
-    }
-  });
+  const container=document.getElementById('alerts');
+  if(!alerts.length){
+    container.innerHTML='<div class="empty">No alerts — all clear!</div>';
+    return;
+  }
 
-  // Filter by selected tab
-  let f;
-  if(aFilt==='all') f=a;
-  else f=a.filter(x=>x.cat===aFilt);
+  container.innerHTML=alerts.map((a,i)=>{
+    const hasTasked=a.clients.every(c=>tasks.some(t=>!t.completed&&t.clientName===c.name));
+    return `<div class="alert-item"${hasTasked?' style="opacity:.5"':''}>
+      <div class="alert-dot ${a.color}"></div>
+      <div class="alert-text">${a.text}</div>
+      ${a.action==='task'?`<button class="btn btn-sm btn-outline" onclick="createTasksFromAlert(${i})" ${hasTasked?'disabled':''}>Create Tasks</button>`
+        :`<button class="btn btn-sm btn-outline" onclick="filterByStatus('${a.clients[0].status}')">View Clients</button>`}
+    </div>`;
+  }).join('');
 
-  // Count badges for tabs
-  const counts={upcoming:0,attention:0,recent:0,older:0};
-  a.forEach(x=>{if(counts[x.cat]!==undefined)counts[x.cat]++;});
-  document.querySelectorAll('#alertTabs .stab').forEach(btn=>{
-    const cat=btn.getAttribute('onclick').match(/'(\w+)'/)[1];
-    const existing=btn.textContent.replace(/\s*\(\d+\)/,'');
-    if(cat!=='all'&&counts[cat]!==undefined) btn.textContent=existing+' ('+counts[cat]+')';
-  });
-
-  document.getElementById('alerts').innerHTML=f.length?f.map(x=>`<div class="alert-item"><div class="alert-dot ${x.t}"></div><div class="alert-text">${x.txt}<div style="font-size:11px;color:var(--g500);margin-top:2px;">${x.sub||''}</div></div><span class="alert-phone">${x.ph}</span></div>`).join(''):'<div class="empty">No alerts in this category.</div>';
+  window._currentAlerts=alerts;
 }
-function fAlert(t,b){aFilt=t;document.querySelectorAll('#alertTabs .stab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rAlerts();}
+
+async function createTasksFromAlert(alertIdx){
+  const alert=window._currentAlerts[alertIdx];
+  if(!alert) return;
+  try{
+    for(const c of alert.clients){
+      const existing=tasks.find(t=>!t.completed&&t.clientName===c.name);
+      if(!existing){
+        await createTask(c._airtableId, c.name, alert.text.replace(/\d+ /,'')+'— '+c.name, new Date(), 'alert');
+      }
+    }
+    renderHome();
+    showToast('Tasks created from alert');
+  }catch(e){console.error(e);showToast('Error creating tasks');}
+}
 
 /* ===== CLIENT TABLE ===== */
 function rTable(){
