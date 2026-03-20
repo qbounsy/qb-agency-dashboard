@@ -57,10 +57,6 @@
   .tabs{display:flex;gap:4px;} .stab{padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;background:var(--g100);color:var(--g700);border:none;transition:all .15s;}
   .stab.active{background:var(--navy);color:#fff;}
 
-  /* Filters */
-  .filters{display:flex;gap:12px;flex-wrap:wrap;padding:12px 20px;background:var(--g50);border-bottom:1px solid var(--g200);}
-  .fg{display:flex;align-items:center;gap:6px;} .fg label{font-size:12px;color:var(--g500);font-weight:500;}
-  .fg select,.fg input{font-size:13px;padding:5px 10px;border:1px solid var(--g300);border-radius:5px;background:#fff;}
 
   /* Tables */
   .tw{overflow-x:auto;} table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -85,7 +81,6 @@
   .alert-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
   .alert-dot.urgent{background:var(--red);} .alert-dot.warn{background:var(--orange);} .alert-dot.info{background:var(--blue);}
   .alert-text{flex:1;font-size:13px;} .alert-text strong{font-weight:600;}
-  .alert-phone{font-size:12px;color:var(--blue);font-weight:500;}
   .empty{text-align:center;padding:60px 20px;color:var(--g500);}
   .hidden{display:none!important;}
 
@@ -158,7 +153,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div><h1>QB Agency Dashboard</h1><div class="sub">Commission Tracking &bull; Payment Monitoring &bull; Carrier Payout Timing</div></div>
+  <div><h1>QB Agency Dashboard</h1><div class="sub">CRM &bull; Client Retention &bull; Commission Tracking</div></div>
   <div class="top-right">
     <span id="srcBadge" style="display:none;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;"></span>
     <button class="btn btn-sm btn-outline" id="syncBtn" style="display:none;color:#fff;border-color:rgba(255,255,255,.4);" onclick="syncAirtable()">Sync Airtable</button>
@@ -325,7 +320,7 @@ document.getElementById('settingsModal').addEventListener('click',function(e){if
 <div class="toast" id="toast"></div>
 
 <script>
-let clients=[], sortCol=null, sortDir=1, aFilt='upcoming', editIdx=-1, hasUnsaved=false;
+let clients=[], sortCol=null, sortDir=1, editIdx=-1, hasUnsaved=false;
 let tasks=[], activities=[];
 let activeFilters={statuses:[],carriers:[],search:''};
 const EXCL=['Cancelled','Lapsed','Declined'];
@@ -879,152 +874,6 @@ function ytdEligible(){const yr=curYear();return eligible().filter(c=>c.earnedDa
 let charts={};
 function destroyCharts(){Object.values(charts).forEach(c=>c.destroy());charts={};}
 
-function renderOverview(){
-  const el=eligible(),t=clients.length,e=el.length;
-  const act=clients.filter(c=>c.status==='Active').length;
-  const fail=clients.filter(c=>c.status==='Payment Failed - Lapse Warning').length;
-  const lapsed=clients.filter(c=>c.status==='Lapsed').length;
-  const pend=clients.filter(c=>c.status==='Pending First Payment').length;
-  const up=clients.filter(c=>c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=7).length;
-  const tAdv=el.reduce((s,c)=>s+c.advComm,0);
-  const tTot=el.reduce((s,c)=>s+c.totalComm,0);
-  const ks=[
-    {l:'Eligible Clients',v:e,c:'',s:`${t} total, ${t-e} excluded`},
-    {l:'Active Policies',v:act,c:'good'},
-    {l:'Pending 1st Pmt',v:pend,c:pend?'warn':''},
-    {l:'Failed / At Risk',v:fail+lapsed,c:(fail+lapsed)?'alert':'',s:`${fail} failed, ${lapsed} lapsed`},
-    {l:'Drafts in 7 Days',v:up,c:up?'warn':'',s:'Prep call needed'},
-    {l:'Total Adv Comm',v:$v(tAdv),c:'good'},
-    {l:'Total Commission',v:$v(tTot),c:''},
-  ];
-  document.getElementById('kpis-overview').innerHTML=ks.map(k=>`<div class="kpi ${k.c}"><div class="lbl">${k.l}</div><div class="val">${k.v}</div>${k.s?`<div class="sub">${k.s}</div>`:''}</div>`).join('');
-  renderAlerts();rTable();
-
-  // Charts
-  destroyCharts();
-  // Carrier bar
-  const byCar={};el.forEach(c=>{if(!byCar[c.carrier])byCar[c.carrier]={adv:0,tot:0};byCar[c.carrier].adv+=c.advComm;byCar[c.carrier].tot+=c.totalComm;});
-  const cL=Object.keys(byCar).sort((a,b)=>byCar[b].tot-byCar[a].tot);
-  charts.c1=new Chart(document.getElementById('ch-carrier'),{type:'bar',data:{labels:cL,datasets:[{label:'Adv Commission',data:cL.map(l=>byCar[l].adv),backgroundColor:'#2E5090',borderRadius:4},{label:'Total Commission',data:cL.map(l=>byCar[l].tot),backgroundColor:'#00B050',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Commission by Carrier (Eligible)'}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
-  // Status pie
-  const bySt={};clients.forEach(c=>{bySt[c.status]=(bySt[c.status]||0)+1;});
-  const sC={'Active':'#00B050','Pending First Payment':'#F0AD4E','Pending Requirement':'#FFC107','Payment Failed - Lapse Warning':'#E74C3C','Lapsed':'#ED7D31','Cancelled':'#6B7280','Declined':'#9CA3AF'};
-  charts.c2=new Chart(document.getElementById('ch-status'),{type:'doughnut',data:{labels:Object.keys(bySt),datasets:[{data:Object.values(bySt),backgroundColor:Object.keys(bySt).map(s=>sC[s]||'#999')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Policy Status Distribution'}}}});
-}
-
-/* ===== YTD TAB ===== */
-function renderYTD(){
-  const yr=curYear();
-  document.getElementById('ytdYear').textContent=yr;
-  const ytd=ytdEligible();
-  const yAdv=ytd.reduce((s,c)=>s+c.advComm,0);
-  const yTot=ytd.reduce((s,c)=>s+c.totalComm,0);
-  const yRem=ytd.reduce((s,c)=>s+c.remainComm,0);
-  const ks=[
-    {l:'YTD Policies Earned',v:ytd.length,c:'good',s:yr+' earned commissions'},
-    {l:'YTD Adv Commission',v:$v(yAdv),c:'good'},
-    {l:'YTD Total Commission',v:$v(yTot),c:''},
-    {l:'YTD Remaining',v:$v(yRem),c:''},
-  ];
-  document.getElementById('kpis-ytd').innerHTML=ks.map(k=>`<div class="kpi ${k.c}"><div class="lbl">${k.l}</div><div class="val">${k.v}</div>${k.s?`<div class="sub">${k.s}</div>`:''}</div>`).join('');
-
-  // Monthly table
-  const curMo=new Date().getMonth();
-  const buckets=MONTHS.map(()=>({count:0,adv:0,tot:0,rem:0}));
-  ytd.forEach(c=>{const m=c.earnedDate.getMonth();buckets[m].count++;buckets[m].adv+=c.advComm;buckets[m].tot+=c.totalComm;buckets[m].rem+=c.remainComm;});
-  let cumAdv=0,cumTot=0,totPol=0,totAdv=0,totTot2=0,totRem=0;
-  let html='<thead><tr><th style="text-align:left">Month</th><th># Policies</th><th>Adv Commission</th><th>Total Commission</th><th>Remaining</th><th>Cumulative Adv</th><th>Cumulative Total</th></tr></thead><tbody>';
-  MONTHS.forEach((m,i)=>{
-    cumAdv+=buckets[i].adv;cumTot+=buckets[i].tot;totPol+=buckets[i].count;totAdv+=buckets[i].adv;totTot2+=buckets[i].tot;totRem+=buckets[i].rem;
-    const future=i>curMo;
-    html+=`<tr class="${future?'future':''}"><td>${m}</td><td style="text-align:right">${buckets[i].count}</td><td style="text-align:right">${$v(buckets[i].adv)}</td><td style="text-align:right">${$v(buckets[i].tot)}</td><td style="text-align:right">${$v(buckets[i].rem)}</td><td style="text-align:right">${$v(cumAdv)}</td><td style="text-align:right">${$v(cumTot)}</td></tr>`;
-  });
-  html+=`<tr class="total-row"><td>TOTAL</td><td style="text-align:right">${totPol}</td><td style="text-align:right">${$v(totAdv)}</td><td style="text-align:right">${$v(totTot2)}</td><td style="text-align:right">${$v(totRem)}</td><td></td><td></td></tr></tbody>`;
-  document.getElementById('monthlyTbl').innerHTML=html;
-
-  // YTD Carrier cards
-  buildCarrierCards(ytd,'ytdCarrierCards');
-
-  // YTD Charts
-  destroyCharts();
-  const mData=MONTHS.map((_,i)=>buckets[i]);
-  const activeMonths=MONTHS.filter((_,i)=>mData[i].count>0);
-  charts.ytdBar=new Chart(document.getElementById('ch-ytd-bar'),{type:'bar',data:{labels:activeMonths,datasets:[{label:'Adv Commission',data:activeMonths.map(m=>mData[MONTHS.indexOf(m)].adv),backgroundColor:'#2E5090',borderRadius:4},{label:'Total Commission',data:activeMonths.map(m=>mData[MONTHS.indexOf(m)].tot),backgroundColor:'rgba(0,176,80,0.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Monthly Earned Commission — '+yr}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
-  let ca=0,ct=0;const cumA=[],cumT=[];
-  activeMonths.forEach(m=>{const i=MONTHS.indexOf(m);ca+=mData[i].adv;ct+=mData[i].tot;cumA.push(ca);cumT.push(ct);});
-  charts.ytdCum=new Chart(document.getElementById('ch-ytd-cum'),{type:'line',data:{labels:activeMonths,datasets:[{label:'Cumulative Adv',data:cumA,borderColor:'#2E5090',backgroundColor:'rgba(46,80,144,.1)',fill:true,tension:.3},{label:'Cumulative Total',data:cumT,borderColor:'#00B050',backgroundColor:'rgba(0,176,80,.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Cumulative Earned — '+yr}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
-}
-
-/* ===== ALL-TIME TAB ===== */
-function renderAllTime(){
-  const el=eligible();
-  const tAdv=el.reduce((s,c)=>s+c.advComm,0);
-  const tTot=el.reduce((s,c)=>s+c.totalComm,0);
-  const tRem=el.reduce((s,c)=>s+c.remainComm,0);
-  const tAnn=el.reduce((s,c)=>s+c.annualPremium,0);
-  const avg=el.length>0?tAdv/el.length:0;
-  const ks=[
-    {l:'Eligible Clients',v:el.length,c:'',s:`${clients.length} total, ${clients.length-el.length} excluded`},
-    {l:'Total Annual Premium',v:$v(tAnn),c:''},
-    {l:'Total Adv Commission',v:$v(tAdv),c:'good'},
-    {l:'Total Commission',v:$v(tTot),c:''},
-    {l:'Remaining Commission',v:$v(tRem),c:'good'},
-    {l:'Avg Adv / Client',v:$v(avg),c:''},
-  ];
-  document.getElementById('kpis-alltime').innerHTML=ks.map(k=>`<div class="kpi ${k.c}"><div class="lbl">${k.l}</div><div class="val">${k.v}</div>${k.s?`<div class="sub">${k.s}</div>`:''}</div>`).join('');
-
-  buildCarrierCards(el,'allCarrierCards');
-  buildPlanCards(el);
-
-  // All-time charts
-  destroyCharts();
-  const byCar={};el.forEach(c=>{if(!byCar[c.carrier])byCar[c.carrier]={adv:0,tot:0};byCar[c.carrier].adv+=c.advComm;byCar[c.carrier].tot+=c.totalComm;});
-  const cL=Object.keys(byCar).sort((a,b)=>byCar[b].tot-byCar[a].tot);
-  charts.allCar=new Chart(document.getElementById('ch-all-carrier'),{type:'bar',data:{labels:cL,datasets:[{label:'Adv Commission',data:cL.map(l=>byCar[l].adv),backgroundColor:'#2E5090',borderRadius:4},{label:'Total Commission',data:cL.map(l=>byCar[l].tot),backgroundColor:'#00B050',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'All-Time Commission by Carrier'}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
-  // Cumulative over all time
-  const byMonth={};
-  el.filter(c=>c.earnedDate).forEach(c=>{
-    const key=c.earnedDate.toLocaleString('en-US',{month:'short',year:'2-digit'});
-    const sk=c.earnedDate.getFullYear()*100+c.earnedDate.getMonth();
-    if(!byMonth[key])byMonth[key]={adv:0,tot:0,sort:sk};
-    byMonth[key].adv+=c.advComm;byMonth[key].tot+=c.totalComm;
-  });
-  const mKeys=Object.keys(byMonth).sort((a,b)=>byMonth[a].sort-byMonth[b].sort);
-  let ca2=0,ct2=0;const cumA2=[],cumT2=[];
-  mKeys.forEach(k=>{ca2+=byMonth[k].adv;ct2+=byMonth[k].tot;cumA2.push(ca2);cumT2.push(ct2);});
-  charts.allCum=new Chart(document.getElementById('ch-all-cum'),{type:'line',data:{labels:mKeys,datasets:[{label:'Cumulative Adv',data:cumA2,borderColor:'#2E5090',backgroundColor:'rgba(46,80,144,.1)',fill:true,tension:.3},{label:'Cumulative Total',data:cumT2,borderColor:'#00B050',backgroundColor:'rgba(0,176,80,.1)',fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'All-Time Cumulative Earned Commission'}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}}});
-}
-
-function buildCarrierCards(pool,containerId){
-  const byCar={};
-  pool.forEach(c=>{
-    if(!byCar[c.carrier])byCar[c.carrier]={count:0,ann:0,adv:0,tot:0,rem:0};
-    const b=byCar[c.carrier];b.count++;b.ann+=c.annualPremium;b.adv+=c.advComm;b.tot+=c.totalComm;b.rem+=c.remainComm;
-  });
-  const sorted=Object.entries(byCar).sort((a,b)=>b[1].tot-a[1].tot);
-  document.getElementById(containerId).innerHTML=sorted.map(([name,d])=>`<div class="carrier-card">
-    <div class="cc-name">${name}</div>
-    <div class="cc-row"><span>Policies</span><span class="cc-val">${d.count}</span></div>
-    <div class="cc-row"><span>Annual Premium</span><span class="cc-val">${$v(d.ann)}</span></div>
-    <div class="cc-row"><span>Adv Commission</span><span class="cc-val">${$v(d.adv)}</span></div>
-    <div class="cc-row"><span>Total Commission</span><span class="cc-val">${$v(d.tot)}</span></div>
-    <div class="cc-row"><span>Remaining</span><span class="cc-val">${$v(d.rem)}</span></div>
-  </div>`).join('');
-}
-
-function buildPlanCards(pool){
-  const byPlan={};
-  pool.forEach(c=>{
-    if(!byPlan[c.planType])byPlan[c.planType]={count:0,adv:0};
-    byPlan[c.planType].count++;byPlan[c.planType].adv+=c.advComm;
-  });
-  const sorted=Object.entries(byPlan).sort((a,b)=>b[1].adv-a[1].adv);
-  document.getElementById('planTypeCards').innerHTML=sorted.map(([name,d])=>`<div class="carrier-card">
-    <div class="cc-name">${name}</div>
-    <div class="cc-row"><span>Policies</span><span class="cc-val">${d.count}</span></div>
-    <div class="cc-row"><span>Adv Commission</span><span class="cc-val">${$v(d.adv)}</span></div>
-  </div>`).join('');
-}
 
 /* ===== ALERTS ===== */
 function daysSince(d){
@@ -1301,28 +1150,6 @@ async function saveDrawer(){
 function dtToInput(d){if(!d)return '';const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return`${y}-${m}-${dd}`;}
 function inputToDt(s){if(!s)return null;const d=new Date(s+'T12:00:00');return isNaN(d)?null:d;}
 
-function openEdit(idx){
-  editIdx=idx;
-  const c=clients[idx];
-  document.getElementById('modalTitle').textContent='Edit: '+c.name;
-  document.getElementById('ed-name').value=c.name;
-  document.getElementById('ed-phone').value=c.phone;
-  document.getElementById('ed-status').value=c.status;
-  document.getElementById('ed-carrier').value=c.carrier;
-  document.getElementById('ed-plan').value=c.planType;
-  document.getElementById('ed-premium').value=c.monthlyPremium||'';
-  document.getElementById('ed-dos').value=dtToInput(c.dateOfSale);
-  document.getElementById('ed-draft').value=dtToInput(c.draftDate);
-  document.getElementById('ed-notes').value=c.notes;
-  document.getElementById('ed-retnotes').value=c.retNotes;
-  updateCalcPreview();
-  document.getElementById('editModal').classList.add('open');
-  // Live preview on changes
-  ['ed-premium','ed-carrier','ed-plan'].forEach(id=>{
-    document.getElementById(id).oninput=updateCalcPreview;
-    document.getElementById(id).onchange=updateCalcPreview;
-  });
-}
 
 function updateCalcPreview(){
   const mo=parseFloat(document.getElementById('ed-premium').value)||0;
