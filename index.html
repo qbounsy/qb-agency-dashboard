@@ -211,6 +211,10 @@ document.getElementById('settingsModal').addEventListener('click',function(e){if
     <div class="tab-page active" id="page-home">
       <div class="kpi-row" id="kpis-home"></div>
       <div class="section">
+        <div class="section-hdr"><h3>First Draft Payments</h3></div>
+        <div class="section-body" id="firstDrafts"></div>
+      </div>
+      <div class="section">
         <div class="section-hdr"><h3>Upcoming Drafts</h3></div>
         <div class="section-body" id="upcomingDrafts"></div>
       </div>
@@ -764,23 +768,31 @@ function renderPriorityLists(){
     });
   };
 
-  // 1. Upcoming Drafts — active clients with draft date in next 30 days
+  // 1. First Draft Payments — pending first payment clients with upcoming draft
+  const firstDrafts=sortByContacted(
+    clients.filter(c=>c.status==='Pending First Payment'&&c.draftDate)
+  );
+  document.getElementById('firstDrafts').innerHTML=firstDrafts.length
+    ?renderPriorityTable(firstDrafts,'firstdraft','firstDrafts')
+    :'<div class="empty">No pending first draft payments</div>';
+
+  // 2. Upcoming Drafts — active clients with draft date in next 30 days
   const upcoming=sortByContacted(
     clients.filter(c=>c.status==='Active'&&c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=30)
   );
   document.getElementById('upcomingDrafts').innerHTML=upcoming.length
-    ?renderPriorityTable(upcoming,'draft')
+    ?renderPriorityTable(upcoming,'draft','upcomingDrafts')
     :'<div class="empty">No upcoming drafts in the next 30 days</div>';
 
-  // 2. Needs Attention — payment failures + pending issues
+  // 3. Needs Attention — payment failures
   const attention=sortByContacted(
     clients.filter(c=>c.status==='Payment Failed - Lapse Warning')
   );
   document.getElementById('needsAttention').innerHTML=attention.length
-    ?renderPriorityTable(attention,'attention')
+    ?renderPriorityTable(attention,'attention','needsAttention')
     :'<div class="empty">No policies need attention — all clear!</div>';
 
-  // 3. Recently Lapsed — lapsed within last 60 days
+  // 4. Recently Lapsed — lapsed within last 60 days
   const lapsed=sortByContacted(
     clients.filter(c=>{
       if(c.status!=='Lapsed') return false;
@@ -790,12 +802,20 @@ function renderPriorityLists(){
     })
   );
   document.getElementById('recentlyLapsed').innerHTML=lapsed.length
-    ?renderPriorityTable(lapsed,'lapsed')
+    ?renderPriorityTable(lapsed,'lapsed','recentlyLapsed')
     :'<div class="empty">No recently lapsed policies</div>';
 }
 
-function renderPriorityTable(list, type){
-  const rows=list.map(c=>{
+let expandedSections={};
+
+function renderPriorityTable(list, type, sectionId){
+  const LIMIT=5;
+  const isExpanded=expandedSections[sectionId];
+  const showDraft=type==='draft'||type==='firstdraft';
+  const visible=isExpanded?list:list.slice(0,LIMIT);
+  const hasMore=list.length>LIMIT;
+
+  const rows=visible.map(c=>{
     const idx=clients.indexOf(c);
     const lastContact=activities.filter(a=>a.clientName===c.name&&a.type==='call')
       .reduce((latest,a)=>a.timestamp>latest?a.timestamp:latest, null);
@@ -810,20 +830,30 @@ function renderPriorityTable(list, type){
       <td>${c.phone||'—'}</td>
       <td>${c.carrier||'—'}</td>
       <td>${sBadge(c.status)}</td>
-      ${type==='draft'?`<td class="${ddCls}">${c.daysUntilDraft} days</td>`:''}
+      ${showDraft?`<td class="${ddCls}">${c.daysUntilDraft!=null?c.daysUntilDraft+' days':'—'}</td>`:''}
       <td style="${contactedStyle}">${contactedLabel}</td>
       <td><button class="btn btn-sm btn-outline" onclick="event.stopPropagation();markContacted(${idx})" style="white-space:nowrap;">Contacted</button></td>
     </tr>`;
   }).join('');
 
+  const expandBtn=hasMore?`<div style="text-align:center;padding:10px;">
+    <button class="btn btn-sm btn-outline" onclick="toggleExpand('${sectionId}')">
+      ${isExpanded?'Show Less':'Show All '+list.length}
+    </button></div>`:'';
+
   return `<div class="tw"><table>
     <thead><tr>
       <th>Name</th><th>Phone</th><th>Carrier</th><th>Status</th>
-      ${type==='draft'?'<th>Draft In</th>':''}
+      ${showDraft?'<th>Draft In</th>':''}
       <th>Last Contact</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
-  </table></div>`;
+  </table></div>${expandBtn}`;
+}
+
+function toggleExpand(sectionId){
+  expandedSections[sectionId]=!expandedSections[sectionId];
+  renderPriorityLists();
 }
 
 async function markContacted(idx){
