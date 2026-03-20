@@ -183,7 +183,7 @@
 <script>
 function openSettings(){const m=document.getElementById('settingsModal');m.style.display='flex';document.getElementById('settingsToken').value=localStorage.getItem('AT_TOKEN')||'';}
 function closeSettings(){document.getElementById('settingsModal').style.display='none';}
-function saveSettings(){const v=document.getElementById('settingsToken').value.trim();if(v){localStorage.setItem('AT_TOKEN',v);AT_TOKEN=v;closeSettings();Promise.all([fetchAirtable(), fetchTasks(), fetchActivities()]).then(([rows, t, a])=>{clients=norm(rows); tasks=t; activities=a; dataSource='airtable'; init();});}else{alert('Please enter a valid token.');}}
+function saveSettings(){const v=document.getElementById('settingsToken').value.trim();if(v){localStorage.setItem('AT_TOKEN',v);AT_TOKEN=v;closeSettings();Promise.all([fetchAirtable(), fetchActivities()]).then(([rows, a])=>{clients=norm(rows); activities=a; dataSource='airtable'; init();});}else{alert('Please enter a valid token.');}}
 function clearToken(){localStorage.removeItem('AT_TOKEN');AT_TOKEN='';document.getElementById('settingsToken').value='';closeSettings();alert('Token cleared. Reload the page to re-enter it.');}
 document.getElementById('settingsModal').addEventListener('click',function(e){if(e.target===this)closeSettings();});
 </script>
@@ -211,15 +211,16 @@ document.getElementById('settingsModal').addEventListener('click',function(e){if
     <div class="tab-page active" id="page-home">
       <div class="kpi-row" id="kpis-home"></div>
       <div class="section">
-        <div class="section-hdr">
-          <h3>Tasks</h3>
-          <button class="btn btn-sm btn-green" onclick="openAddTask()">+ Add Task</button>
-        </div>
-        <div class="section-body" id="tasksList"></div>
+        <div class="section-hdr"><h3>Upcoming Drafts</h3></div>
+        <div class="section-body" id="upcomingDrafts"></div>
       </div>
       <div class="section">
-        <div class="section-hdr"><h3>Priority Alerts</h3></div>
-        <div class="section-body" id="alerts"></div>
+        <div class="section-hdr"><h3>Needs Attention</h3></div>
+        <div class="section-body" id="needsAttention"></div>
+      </div>
+      <div class="section">
+        <div class="section-hdr"><h3>Recently Lapsed</h3></div>
+        <div class="section-body" id="recentlyLapsed"></div>
       </div>
     </div>
 
@@ -322,7 +323,7 @@ document.getElementById('settingsModal').addEventListener('click',function(e){if
 
 <script>
 let clients=[], sortCol=null, sortDir=1, editIdx=-1, hasUnsaved=false;
-let tasks=[], activities=[];
+let activities=[];
 let activeFilters={statuses:[],carriers:[],search:''};
 const EXCL=['Cancelled','Lapsed','Declined'];
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -365,20 +366,8 @@ let AT_TOKEN=(()=>{let t=localStorage.getItem('AT_TOKEN');if(!t){t=prompt('Enter
 const AT_BASE='appK65HG3vNZebZLu';
 const AT_TABLE='tblsUWdPEPGmCtKFO';
 const AT_URL=`https://api.airtable.com/v0/${AT_BASE}/${AT_TABLE}`;
-const AT_TASKS_TABLE='tblSZHvD7FfzxrqZi';
-const AT_TASKS_URL=`https://api.airtable.com/v0/${AT_BASE}/${AT_TASKS_TABLE}`;
 const AT_ACTIVITIES_TABLE='tbl2xuC4F1Kqd9Xwn';
 const AT_ACTIVITIES_URL=`https://api.airtable.com/v0/${AT_BASE}/${AT_ACTIVITIES_TABLE}`;
-
-const TF={
-  description:'fldwSo8ZVqXTJIdE3',
-  client:'fldLupwYtBGcKiiXS',
-  clientName:'fld8SmFZbhgKGJAoO',
-  dueDate:'fldv31syJLpd3vWiv',
-  completed:'fldCpENm7RVHSJzZY',
-  createdFrom:'fldqaDUMloU5dYprs',
-  createdAt:'fldrCGNMoZ6I1d1y5'
-};
 
 const AF={
   description:'fldTr14H4XVdefMp1',
@@ -419,33 +408,6 @@ async function fetchAirtable(){
   }).filter(r=>r['Name']);
 }
 
-async function fetchTasks(){
-  let allRecords=[], offset=null;
-  do {
-    const url=new URL(AT_TASKS_URL);
-    url.searchParams.set('pageSize','100');
-    if(offset) url.searchParams.set('offset',offset);
-    const resp=await fetch(url,{headers:{'Authorization':`Bearer ${AT_TOKEN}`}});
-    if(!resp.ok) throw new Error('Airtable Tasks error: '+resp.status);
-    const data=await resp.json();
-    allRecords=allRecords.concat(data.records);
-    offset=data.offset||null;
-  } while(offset);
-  return allRecords.map(r=>{
-    const f=r.fields||{};
-    return {
-      _airtableId:r.id,
-      description:f[TF.description]||'',
-      clientId:(f[TF.client]||[])[0]||null,
-      clientName:f[TF.clientName]||'',
-      dueDate:f[TF.dueDate]?new Date(f[TF.dueDate]):null,
-      completed:!!f[TF.completed],
-      createdFrom:f[TF.createdFrom]||'manual',
-      createdAt:f[TF.createdAt]?new Date(f[TF.createdAt]):null
-    };
-  });
-}
-
 async function fetchActivities(){
   let allRecords=[], offset=null;
   do {
@@ -469,51 +431,6 @@ async function fetchActivities(){
       timestamp:f[AF.timestamp]?new Date(f[AF.timestamp]):null
     };
   });
-}
-
-async function createTask(clientAirtableId, clientName, description, dueDate, createdFrom='manual'){
-  const fields={};
-  fields[TF.description]=description;
-  fields[TF.clientName]=clientName;
-  fields[TF.dueDate]=dueDate?dueDate.toISOString().split('T')[0]:null;
-  fields[TF.completed]=false;
-  fields[TF.createdFrom]=createdFrom;
-  fields[TF.createdAt]=new Date().toISOString();
-  if(clientAirtableId) fields[TF.client]=[clientAirtableId];
-  const resp=await fetch(AT_TASKS_URL,{
-    method:'POST',
-    headers:{'Authorization':`Bearer ${AT_TOKEN}`,'Content-Type':'application/json'},
-    body:JSON.stringify({fields})
-  });
-  if(!resp.ok) throw new Error('Create task error: '+resp.status);
-  const r=await resp.json();
-  const task={
-    _airtableId:r.id,
-    description,
-    clientId:clientAirtableId,
-    clientName,
-    dueDate,
-    completed:false,
-    createdFrom,
-    createdAt:new Date()
-  };
-  tasks.push(task);
-  return task;
-}
-
-async function completeTask(taskIdx){
-  const t=tasks[taskIdx];
-  if(!t._airtableId){ t.completed=true; return; }
-  const resp=await fetch(`${AT_TASKS_URL}/${t._airtableId}`,{
-    method:'PATCH',
-    headers:{'Authorization':`Bearer ${AT_TOKEN}`,'Content-Type':'application/json'},
-    body:JSON.stringify({fields:{[TF.completed]:true}})
-  });
-  if(!resp.ok) throw new Error('Complete task error: '+resp.status);
-  t.completed=true;
-  if(t.clientId){
-    await logActivity(t.clientId, t.clientName, 'task-completed', 'Completed: '+t.description);
-  }
 }
 
 async function logActivity(clientAirtableId, clientName, type, description){
@@ -548,10 +465,9 @@ let dataSource='none';
 window.addEventListener('DOMContentLoaded',async ()=>{
   // Try Airtable first (live data)
   try {
-    const [rows, t, a]=await Promise.all([fetchAirtable(), fetchTasks(), fetchActivities()]);
+    const [rows, a]=await Promise.all([fetchAirtable(), fetchActivities()]);
     if(rows.length>0){
       clients=norm(rows);
-      tasks=t;
       activities=a;
       dataSource='airtable';
       init();
@@ -578,10 +494,9 @@ function refreshData(){
 async function syncAirtable(){
   showToast('Syncing from Airtable...');
   try {
-    const [rows, t, a]=await Promise.all([fetchAirtable(), fetchTasks(), fetchActivities()]);
+    const [rows, a]=await Promise.all([fetchAirtable(), fetchActivities()]);
     if(rows.length>0){
       clients=norm(rows);
-      tasks=t;
       activities=a;
       dataSource='airtable';
       hasUnsaved=false;
@@ -640,10 +555,6 @@ function loadDemo(){
   const pr=[78,0,64.71,73.25,35.15,78.95,46.24,52,55.5,85,55.5,92,120,68,88.5,42,63.25,95,0,75];
   const rows=n.map((nm,i)=>({"Date of Sale":new Date(2025,10,2+i*3).toLocaleDateString('en-US'),"Name":nm,"Phone Number":`(555) ${300+i}-${4000+i*100}`,"Policy Status":st[i],"Plan Type":pl[i],"Carrier":cr[i],"Monthly Premium":pr[i],"First Draft Date":new Date(2026,0,5+i*5).toLocaleDateString('en-US'),"Notes":"","Retention Notes":st[i]==="Payment Failed - Lapse Warning"?"Called - updating bank info":""}));
   clients=norm(rows);
-  tasks=[
-    {_airtableId:null,description:'Follow up on policy upgrade',clientId:null,clientName:'Demo Client 1',dueDate:new Date(Date.now()+86400000),completed:false,createdFrom:'manual',createdAt:new Date()},
-    {_airtableId:null,description:'Review upcoming draft payment',clientId:null,clientName:'Demo Client 2',dueDate:new Date(Date.now()+3*86400000),completed:false,createdFrom:'alert',createdAt:new Date()}
-  ];
   activities=[
     {_airtableId:null,clientId:null,clientName:'Demo Client 1',type:'call',description:'Discussed policy renewal options',timestamp:new Date(Date.now()-86400000)},
     {_airtableId:null,clientId:null,clientName:'Demo Client 2',type:'note',description:'Client requested callback next week',timestamp:new Date()}
@@ -677,7 +588,6 @@ function setMoneyView(view,btn){
   renderMoney();
 }
 
-/* ===== STUB RENDER FUNCTIONS (implemented in Tasks 3-5) ===== */
 function renderHome(){
   const act=eligible();
   const ytd=ytdEligible();
@@ -695,8 +605,7 @@ function renderHome(){
     <div class="kpi"><div class="lbl">This Month</div><div class="val">${$v(monthEarned)}</div></div>
   `;
 
-  renderTasks();
-  renderAlerts();
+  renderPriorityLists();
 }
 function renderClients(){
   const statuses=['Active','Pending','Lapsed'];
@@ -798,59 +707,6 @@ function renderMoney(){
       scales:{y:{beginAtZero:true,ticks:{callback:v=>$v(v)}}}}
   });
 }
-function openAddTask(){
-  const name=prompt('Client name (or leave blank):');
-  const desc=prompt('Task description:');
-  if(!desc) return;
-  const dueDateStr=prompt('Due date (YYYY-MM-DD, or leave blank):');
-  const dueDate=dueDateStr?new Date(dueDateStr+'T12:00:00'):null;
-  const client=name?clients.find(c=>c.name.toLowerCase().includes(name.toLowerCase())):null;
-  createTask(client?client._airtableId:null, client?client.name:(name||''), desc, dueDate, 'manual')
-    .then(()=>{renderHome();showToast('Task created');})
-    .catch(e=>{console.error(e);showToast('Error creating task');});
-}
-
-function renderTasks(){
-  const openTasks=tasks.filter(t=>!t.completed).sort((a,b)=>{
-    if(!a.dueDate) return 1;
-    if(!b.dueDate) return -1;
-    return a.dueDate-b.dueDate;
-  });
-  const container=document.getElementById('tasksList');
-  if(!openTasks.length){
-    container.innerHTML='<div class="empty">No open tasks. Create one or let alerts generate them.</div>';
-    return;
-  }
-  const today=new Date(); today.setHours(0,0,0,0);
-  container.innerHTML=openTasks.map((t,i)=>{
-    const origIdx=tasks.indexOf(t);
-    const overdue=t.dueDate&&t.dueDate<today;
-    const dueToday=t.dueDate&&t.dueDate.toDateString()===today.toDateString();
-    const urgent=overdue||dueToday;
-    const dueLbl=t.dueDate?(overdue?'Overdue':dueToday?'Due today':'Due '+t.dueDate.toLocaleDateString()):'No date';
-    return `<div class="alert-item">
-      <input type="checkbox" onchange="handleCompleteTask(${origIdx})" style="width:18px;height:18px;cursor:pointer;">
-      ${urgent?'<span class="badge badge-failed">URGENT</span>':''}
-      <div class="alert-text"><strong>${t.clientName||'No client'}</strong> — ${t.description}</div>
-      <span style="font-size:12px;color:${urgent?'var(--red)':'var(--g500)'}">${dueLbl}</span>
-    </div>`;
-  }).join('');
-}
-
-async function handleCompleteTask(idx){
-  try{
-    await completeTask(idx);
-    renderHome();
-    showToast('Task completed');
-  }catch(e){console.error(e);showToast('Error completing task');}
-}
-
-function filterByStatus(status){
-  const mapped=status.startsWith('Pending')||status.startsWith('Payment')?'Pending':status;
-  activeFilters={statuses:[mapped],carriers:[],search:''};
-  switchTab('clients',document.querySelectorAll('.main-tab')[1]);
-}
-
 /* ===== INIT ===== */
 function init(){
   document.getElementById('uz').classList.add('hidden');
@@ -876,75 +732,103 @@ let charts={};
 function destroyCharts(){Object.values(charts).forEach(c=>c.destroy());charts={};}
 
 
-/* ===== ALERTS ===== */
 function daysSince(d){
   if(!d)return null;
   const today=new Date();today.setHours(0,0,0,0);
   return Math.floor((today-d)/864e5);
 }
 
-function renderAlerts(){
-  const today=new Date(); today.setHours(0,0,0,0);
-  const alerts=[];
+/* ===== PRIORITY LISTS ===== */
+function renderPriorityLists(){
+  const recentlyContacted=(clientName)=>{
+    const recent=activities.filter(a=>a.clientName===clientName&&a.type==='call');
+    if(!recent.length) return null;
+    return recent.reduce((latest,a)=>a.timestamp>latest?a.timestamp:latest, new Date(0));
+  };
 
-  // 1. Payment failures (red)
-  const failed=clients.filter(c=>c.status==='Payment Failed - Lapse Warning');
-  if(failed.length){
-    alerts.push({color:'urgent',text:`${failed.length} payment failure${failed.length>1?'s':''} need attention`,
-      clients:failed,action:'task'});
-  }
+  const sortByContacted=(list)=>{
+    return list.sort((a,b)=>{
+      const aContact=recentlyContacted(a.name);
+      const bContact=recentlyContacted(b.name);
+      if(!aContact&&bContact) return -1;
+      if(aContact&&!bContact) return 1;
+      if(aContact&&bContact) return aContact-bContact;
+      return (a.daysUntilDraft||999)-(b.daysUntilDraft||999);
+    });
+  };
 
-  // 2. Upcoming drafts within 7 days (amber)
-  const upcoming=clients.filter(c=>c.status==='Active'&&c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=7);
-  if(upcoming.length){
-    alerts.push({color:'warn',text:`${upcoming.length} draft${upcoming.length>1?'s':''} coming up this week`,
-      clients:upcoming,action:'view'});
-  }
+  // 1. Upcoming Drafts — active clients with draft date in next 30 days
+  const upcoming=sortByContacted(
+    clients.filter(c=>c.status==='Active'&&c.daysUntilDraft!==null&&c.daysUntilDraft>=0&&c.daysUntilDraft<=30)
+  );
+  document.getElementById('upcomingDrafts').innerHTML=upcoming.length
+    ?renderPriorityTable(upcoming,'draft')
+    :'<div class="empty">No upcoming drafts in the next 30 days</div>';
 
-  // 3. Recently lapsed <60 days (gray)
-  const lapsed=clients.filter(c=>{
-    if(c.status!=='Lapsed') return false;
-    const dd=c.draftDate||c.dateOfSale;
-    if(!dd) return true;
-    return daysSince(dd)<60;
-  });
-  if(lapsed.length){
-    alerts.push({color:'info',text:`${lapsed.length} recently lapsed polic${lapsed.length>1?'ies':'y'}`,
-      clients:lapsed,action:'view'});
-  }
+  // 2. Needs Attention — payment failures + pending issues
+  const attention=sortByContacted(
+    clients.filter(c=>c.status==='Payment Failed - Lapse Warning')
+  );
+  document.getElementById('needsAttention').innerHTML=attention.length
+    ?renderPriorityTable(attention,'attention')
+    :'<div class="empty">No policies need attention — all clear!</div>';
 
-  const container=document.getElementById('alerts');
-  if(!alerts.length){
-    container.innerHTML='<div class="empty">No alerts — all clear!</div>';
-    return;
-  }
-
-  container.innerHTML=alerts.map((a,i)=>{
-    const hasTasked=a.clients.every(c=>tasks.some(t=>!t.completed&&t.clientName===c.name));
-    return `<div class="alert-item"${hasTasked?' style="opacity:.5"':''}>
-      <div class="alert-dot ${a.color}"></div>
-      <div class="alert-text">${a.text}</div>
-      ${a.action==='task'?`<button class="btn btn-sm btn-outline" onclick="createTasksFromAlert(${i})" ${hasTasked?'disabled':''}>Create Tasks</button>`
-        :`<button class="btn btn-sm btn-outline" onclick="filterByStatus('${a.clients[0].status}')">View Clients</button>`}
-    </div>`;
-  }).join('');
-
-  window._currentAlerts=alerts;
+  // 3. Recently Lapsed — lapsed within last 60 days
+  const lapsed=sortByContacted(
+    clients.filter(c=>{
+      if(c.status!=='Lapsed') return false;
+      const dd=c.draftDate||c.dateOfSale;
+      if(!dd) return true;
+      return daysSince(dd)<60;
+    })
+  );
+  document.getElementById('recentlyLapsed').innerHTML=lapsed.length
+    ?renderPriorityTable(lapsed,'lapsed')
+    :'<div class="empty">No recently lapsed policies</div>';
 }
 
-async function createTasksFromAlert(alertIdx){
-  const alert=window._currentAlerts[alertIdx];
-  if(!alert) return;
+function renderPriorityTable(list, type){
+  const rows=list.map(c=>{
+    const idx=clients.indexOf(c);
+    const lastContact=activities.filter(a=>a.clientName===c.name&&a.type==='call')
+      .reduce((latest,a)=>a.timestamp>latest?a.timestamp:latest, null);
+    const contactedAgo=lastContact?Math.floor((Date.now()-lastContact)/(1000*60*60*24)):null;
+    const contactedLabel=contactedAgo!==null?(contactedAgo===0?'Today':contactedAgo+' day'+(contactedAgo!==1?'s':'')+' ago'):'Never';
+    const contactedStyle=contactedAgo!==null&&contactedAgo<3?'color:var(--green);font-weight:600':'color:var(--g500)';
+
+    const ddCls=c.daysUntilDraft!==null&&c.daysUntilDraft<=3?'draft-urgent':c.daysUntilDraft!==null&&c.daysUntilDraft<=7?'draft-warning':'';
+
+    return `<tr class="clickable-row" onclick="openDrawer(${idx})">
+      <td><strong>${c.name||'—'}</strong></td>
+      <td>${c.phone||'—'}</td>
+      <td>${c.carrier||'—'}</td>
+      <td>${sBadge(c.status)}</td>
+      ${type==='draft'?`<td class="${ddCls}">${c.daysUntilDraft} days</td>`:''}
+      <td style="${contactedStyle}">${contactedLabel}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="event.stopPropagation();markContacted(${idx})" style="white-space:nowrap;">Contacted</button></td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="tw"><table>
+    <thead><tr>
+      <th>Name</th><th>Phone</th><th>Carrier</th><th>Status</th>
+      ${type==='draft'?'<th>Draft In</th>':''}
+      <th>Last Contact</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+async function markContacted(idx){
+  const c=clients[idx];
   try{
-    for(const c of alert.clients){
-      const existing=tasks.find(t=>!t.completed&&t.clientName===c.name);
-      if(!existing){
-        await createTask(c._airtableId, c.name, alert.text.replace(/\d+ /,'')+'— '+c.name, new Date(), 'alert');
-      }
-    }
+    await logActivity(c._airtableId, c.name, 'call', 'Contacted client');
     renderHome();
-    showToast('Tasks created from alert');
-  }catch(e){console.error(e);showToast('Error creating tasks');}
+    showToast('Marked as contacted');
+  }catch(e){
+    console.error(e);
+    showToast('Error logging contact');
+  }
 }
 
 /* ===== CLIENT TABLE ===== */
@@ -1012,7 +896,6 @@ function openDrawer(idx){
   drawerIdx=idx;
   const c=clients[idx];
   const clientActivities=activities.filter(a=>a.clientName===c.name).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-  const clientTasks=tasks.filter(t=>!t.completed&&t.clientName===c.name);
 
   const actIcons={call:'📞','follow-up':'🔄',note:'📝','task-completed':'✅'};
 
@@ -1053,18 +936,6 @@ function openDrawer(idx){
     </div>
 
     <div class="drawer-section">
-      <h4>Tasks <button class="btn btn-sm btn-outline" style="float:right;font-size:11px;" onclick="addClientTask(${idx})">+ Task</button></h4>
-      ${clientTasks.length?clientTasks.map(t=>{
-        const ti=tasks.indexOf(t);
-        return `<div class="alert-item" style="padding:6px 0;">
-          <input type="checkbox" onchange="handleCompleteTask(${ti}).then(()=>openDrawer(${idx}))" style="width:16px;height:16px;cursor:pointer;">
-          <div class="alert-text" style="font-size:13px;">${t.description}</div>
-          <span style="font-size:11px;color:var(--g500);">${t.dueDate?t.dueDate.toLocaleDateString():'—'}</span>
-        </div>`;
-      }).join(''):'<div style="color:var(--g500);font-size:13px;">No open tasks</div>'}
-    </div>
-
-    <div class="drawer-section">
       <h4>Activity Log <button class="btn btn-sm btn-outline" style="float:right;font-size:11px;" onclick="addClientActivity(${idx})">+ Log Activity</button></h4>
       ${clientActivities.length?clientActivities.map(a=>`
         <div class="activity-entry">
@@ -1084,17 +955,6 @@ function openDrawer(idx){
 function closeDrawer(){
   document.getElementById('drawerOverlay').classList.remove('open');
   drawerIdx=-1;
-}
-
-function addClientTask(idx){
-  const c=clients[idx];
-  const desc=prompt('Task description:');
-  if(!desc) return;
-  const dueDateStr=prompt('Due date (YYYY-MM-DD, or leave blank):');
-  const dueDate=dueDateStr?new Date(dueDateStr+'T12:00:00'):null;
-  createTask(c._airtableId, c.name, desc, dueDate, 'manual')
-    .then(()=>{openDrawer(idx);showToast('Task created');})
-    .catch(e=>{console.error(e);showToast('Error creating task');});
 }
 
 function addClientActivity(idx){
