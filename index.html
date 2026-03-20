@@ -183,98 +183,63 @@ document.getElementById('settingsModal').addEventListener('click',function(e){if
   <div id="dc" class="hidden">
     <!-- 3-tab nav -->
     <div class="main-tabs">
-      <button class="main-tab active" onclick="switchTab('overview',this)">Overview</button>
-      <button class="main-tab" onclick="switchTab('ytd',this)">Year to Date</button>
-      <button class="main-tab" onclick="switchTab('alltime',this)">All-Time Totals</button>
+      <button class="main-tab active" onclick="switchTab('home',this)">Home</button>
+      <button class="main-tab" onclick="switchTab('clients',this)">Clients</button>
+      <button class="main-tab" onclick="switchTab('money',this)">Money</button>
     </div>
 
-    <!-- TAB 1: Overview -->
-    <div class="tab-page active" id="page-overview">
-      <div class="kpi-row" id="kpis-overview"></div>
-      <!-- Action Alerts -->
+    <!-- TAB 1: Home -->
+    <div class="tab-page active" id="page-home">
+      <div class="kpi-row" id="kpis-home"></div>
       <div class="section">
-        <div class="section-hdr"><h3>Action Alerts</h3><div class="tabs" id="alertTabs">
-          <button class="stab active" onclick="fAlert('upcoming',this)">Upcoming Drafts</button>
-          <button class="stab" onclick="fAlert('attention',this)">Needs Attention</button>
-          <button class="stab" onclick="fAlert('recent',this)">Recently Lost (&lt;60d)</button>
-          <button class="stab" onclick="fAlert('older',this)">Older Lost (60d+)</button>
-          <button class="stab" onclick="fAlert('all',this)">All</button>
-        </div></div>
+        <div class="section-hdr">
+          <h3>Tasks</h3>
+          <button class="btn btn-sm btn-green" onclick="openAddTask()">+ Add Task</button>
+        </div>
+        <div class="section-body" id="tasksList"></div>
+      </div>
+      <div class="section">
+        <div class="section-hdr"><h3>Priority Alerts</h3></div>
         <div class="section-body" id="alerts"></div>
       </div>
-      <!-- Client List -->
-      <div class="section">
-        <div class="section-hdr">
-          <h3>Client List <span style="font-size:12px;color:var(--g500);font-weight:400;">Click any row to edit</span></h3>
-          <div style="display:flex;align-items:center;gap:12px;">
-            <span style="font-size:13px;color:var(--g500);" id="cc"></span>
-            <span id="unsavedBadge" class="hidden" style="font-size:12px;color:var(--orange);font-weight:600;">Unsaved changes<span class="unsaved-dot"></span></span>
-            <button class="btn btn-sm btn-green" onclick="openNewClient()">+ Add Client</button>
-          </div>
-        </div>
-        <div class="filters">
-          <div class="fg"><label>Status</label><select id="fS" onchange="rTable()"><option value="">All</option></select></div>
-          <div class="fg"><label>Carrier</label><select id="fC" onchange="rTable()"><option value="">All</option></select></div>
-          <div class="fg"><label>Plan</label><select id="fP" onchange="rTable()"><option value="">All</option></select></div>
-          <div class="fg"><label>Sale Month</label><select id="fM" onchange="rTable()"><option value="">All</option><option value="0">January</option><option value="1">February</option><option value="2">March</option><option value="3">April</option><option value="4">May</option><option value="5">June</option><option value="6">July</option><option value="7">August</option><option value="8">September</option><option value="9">October</option><option value="10">November</option><option value="11">December</option></select></div>
-          <div class="fg"><label>Search</label><input type="text" id="fQ" placeholder="Name..." oninput="rTable()"></div>
-        </div>
-        <div class="tw" style="max-height:500px;overflow-y:auto;"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
-      </div>
-      <!-- Charts -->
-      <div class="section"><div class="section-hdr"><h3>Commission Analytics</h3></div><div class="section-body">
-        <div class="chart-grid">
-          <div class="chart-box"><canvas id="ch-carrier"></canvas></div>
-          <div class="chart-box"><canvas id="ch-status"></canvas></div>
-        </div>
-      </div></div>
     </div>
 
-    <!-- TAB 2: Year to Date -->
-    <div class="tab-page" id="page-ytd">
-      <div class="kpi-row" id="kpis-ytd"></div>
-      <!-- Monthly Earned -->
+    <!-- TAB 2: Clients -->
+    <div class="tab-page" id="page-clients">
+      <div style="margin-bottom:16px;">
+        <input type="text" id="clientSearch" placeholder="Search by name, phone, or carrier..." oninput="rTable()" style="width:100%;padding:12px 16px;border:1.5px solid var(--g300);border-radius:8px;font-size:14px;">
+      </div>
+      <div id="filterChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;"></div>
       <div class="section">
         <div class="section-hdr">
-          <h3>Monthly Earned Commission — <span id="ytdYear">2026</span></h3>
-          <span style="font-size:12px;color:var(--g500);">AMAM/RNA pay on approval &bull; AIG/AHL/Transamerica pay after first draft</span>
+          <h3>Clients <span style="font-size:12px;color:var(--g500);font-weight:400;" id="cc"></span></h3>
+          <button class="btn btn-sm btn-green" onclick="openNewClient()">+ Add Client</button>
         </div>
+        <div class="tw" style="max-height:600px;overflow-y:auto;"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Money -->
+    <div class="tab-page" id="page-money">
+      <div class="kpi-row" id="kpis-money"></div>
+      <div style="display:flex;gap:4px;margin-bottom:16px;">
+        <button class="stab active" id="moneyToggleYTD" onclick="setMoneyView('ytd',this)">YTD</button>
+        <button class="stab" id="moneyToggleAll" onclick="setMoneyView('alltime',this)">All-Time</button>
+      </div>
+      <div class="section">
+        <div class="section-hdr"><h3>Monthly Breakdown</h3></div>
         <div class="section-body"><div class="tw"><table class="monthly-tbl" id="monthlyTbl"></table></div></div>
       </div>
-      <!-- YTD Carrier cards -->
       <div class="section">
-        <div class="section-hdr"><h3>YTD Commission by Carrier</h3></div>
-        <div class="section-body"><div id="ytdCarrierCards" class="carrier-cards"></div></div>
+        <div class="section-hdr"><h3>Commission by Carrier</h3></div>
+        <div class="section-body"><div id="carrierCards" class="carrier-cards"></div></div>
       </div>
-      <!-- YTD Charts -->
-      <div class="section"><div class="section-hdr"><h3>YTD Commission Trend</h3></div><div class="section-body">
+      <div class="section"><div class="section-hdr"><h3>Commission Trend</h3></div><div class="section-body">
         <div class="chart-grid">
-          <div class="chart-box"><canvas id="ch-ytd-bar"></canvas></div>
-          <div class="chart-box"><canvas id="ch-ytd-cum"></canvas></div>
+          <div class="chart-box"><canvas id="ch-carrier"></canvas></div>
+          <div class="chart-box"><canvas id="ch-cum"></canvas></div>
         </div>
       </div></div>
-    </div>
-
-    <!-- TAB 3: All-Time Totals -->
-    <div class="tab-page" id="page-alltime">
-      <div class="kpi-row" id="kpis-alltime"></div>
-      <!-- All-Time Carrier cards -->
-      <div class="section">
-        <div class="section-hdr"><h3>All-Time Commission by Carrier</h3></div>
-        <div class="section-body"><div id="allCarrierCards" class="carrier-cards"></div></div>
-      </div>
-      <!-- All-Time Charts -->
-      <div class="section"><div class="section-hdr"><h3>All-Time Commission Analytics</h3></div><div class="section-body">
-        <div class="chart-grid">
-          <div class="chart-box"><canvas id="ch-all-carrier"></canvas></div>
-          <div class="chart-box"><canvas id="ch-all-cum"></canvas></div>
-        </div>
-      </div></div>
-      <!-- Plan Type (bottom, muted) -->
-      <div class="section" style="opacity:.7;">
-        <div class="section-hdr"><h3 style="color:var(--g500);">By Plan Type</h3></div>
-        <div class="section-body"><div id="planTypeCards" class="carrier-cards"></div></div>
-      </div>
     </div>
   </div>
 </div>
@@ -656,19 +621,35 @@ function loadDemo(){
 }
 
 /* ===== TAB SWITCHING ===== */
+let moneyView='ytd';
+
 function switchTab(tab,btn){
-  document.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.main-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+tab).classList.add('active');
   renderTab(tab);
 }
 
 function renderTab(tab){
-  if(tab==='overview') renderOverview();
-  else if(tab==='ytd') renderYTD();
-  else if(tab==='alltime') renderAllTime();
+  destroyCharts();
+  if(tab==='home') renderHome();
+  else if(tab==='clients') renderClients();
+  else if(tab==='money') renderMoney();
 }
+
+function setMoneyView(view,btn){
+  moneyView=view;
+  document.querySelectorAll('#page-money .stab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMoney();
+}
+
+/* ===== STUB RENDER FUNCTIONS (implemented in Tasks 3-5) ===== */
+function renderHome(){ /* TODO: Task 3 */ }
+function renderClients(){ /* TODO: Task 4 */ }
+function renderMoney(){ /* TODO: Task 5 */ }
+function openAddTask(){ /* TODO: Task 3 */ }
 
 /* ===== INIT ===== */
 function init(){
@@ -684,11 +665,7 @@ function init(){
   else if(dataSource==='prebaked'){badge.textContent='SAVED';badge.style.background='#F0AD4E';badge.style.color='#fff';}
   else{badge.textContent='FILE';badge.style.background='#2E5090';badge.style.color='#fff';}
   document.getElementById('upd').textContent='Updated: '+new Date().toLocaleString();
-  const mk=(arr,el)=>{el.innerHTML='<option value="">All</option>'+[...new Set(arr)].filter(Boolean).sort().map(s=>`<option>${s}</option>`).join('');};
-  mk(clients.map(c=>c.status),document.getElementById('fS'));
-  mk(clients.map(c=>c.carrier),document.getElementById('fC'));
-  mk(clients.map(c=>c.planType),document.getElementById('fP'));
-  renderOverview();
+  renderTab('home');
 }
 
 function eligible(){return clients.filter(c=>!EXCL.includes(c.status));}
@@ -917,8 +894,9 @@ function fAlert(t,b){aFilt=t;document.querySelectorAll('#alertTabs .stab').forEa
 
 /* ===== CLIENT TABLE ===== */
 function rTable(){
-  const sf=document.getElementById('fS').value,cf=document.getElementById('fC').value,pf=document.getElementById('fP').value,mf=document.getElementById('fM').value,qf=document.getElementById('fQ').value.toLowerCase();
-  let d=clients.map((c,i)=>({...c,_idx:i})).filter(c=>{if(sf&&c.status!==sf)return false;if(cf&&c.carrier!==cf)return false;if(pf&&c.planType!==pf)return false;if(mf!==''&&(!c.dateOfSale||c.dateOfSale.getMonth()!==parseInt(mf)))return false;if(qf&&!c.name.toLowerCase().includes(qf))return false;return true;});
+  const searchEl=document.getElementById('clientSearch');
+  const qf=searchEl?searchEl.value.toLowerCase():'';
+  let d=clients.map((c,i)=>({...c,_idx:i})).filter(c=>{if(qf&&!c.name.toLowerCase().includes(qf)&&!(c.phone||'').toLowerCase().includes(qf)&&!(c.carrier||'').toLowerCase().includes(qf))return false;return true;});
   if(sortCol)d.sort((a,b)=>{let va=a[sortCol],vb=b[sortCol];if(va==null)return 1;if(vb==null)return-1;return(typeof va==='string'?va.localeCompare(vb):(va-vb))*sortDir;});
   document.getElementById('cc').textContent=`${d.length} of ${clients.length} clients`;
   const cols=[{k:'name',l:'Name'},{k:'status',l:'Status'},{k:'planType',l:'Plan'},{k:'carrier',l:'Carrier'},{k:'monthlyPremium',l:'Premium',f:'$'},{k:'annualPremium',l:'Annual',f:'$'},{k:'draftStr',l:'Draft Date'},{k:'daysUntilDraft',l:'Days to Draft'},{k:'advComm',l:'Adv Comm',f:'$'},{k:'totalComm',l:'Total Comm',f:'$'},{k:'remainComm',l:'Remaining',f:'$'}];
@@ -1020,8 +998,8 @@ async function saveEdit(){
 
   // Re-render immediately (optimistic update)
   const activeTab=document.querySelector('.main-tab.active').textContent.trim().toLowerCase().replace(/[- ]/g,'');
-  const tabMap={'overview':'overview','yeartodate':'ytd','alltimetotals':'alltime'};
-  renderTab(tabMap[activeTab]||'overview');
+  const tabMap={'home':'home','clients':'clients','money':'money'};
+  renderTab(tabMap[activeTab]||'home');
 
   // Push to Airtable if we have a record ID
   if(c._airtableId){
@@ -1091,8 +1069,8 @@ async function saveNewClient(){
 
   // Re-render
   const activeTab=document.querySelector('.main-tab.active').textContent.trim().toLowerCase().replace(/[- ]/g,'');
-  const tabMap={'overview':'overview','yeartodate':'ytd','alltimetotals':'alltime'};
-  renderTab(tabMap[activeTab]||'overview');
+  const tabMap={'home':'home','clients':'clients','money':'money'};
+  renderTab(tabMap[activeTab]||'home');
 
   // Push to Airtable
   showToast('Adding to Airtable...');
