@@ -507,6 +507,7 @@ async function createTask(clientAirtableId, clientName, description, dueDate, cr
 
 async function completeTask(taskIdx){
   const t=tasks[taskIdx];
+  if(!t._airtableId){ t.completed=true; return; }
   const resp=await fetch(`${AT_TASKS_URL}/${t._airtableId}`,{
     method:'PATCH',
     headers:{'Authorization':`Bearer ${AT_TOKEN}`,'Content-Type':'application/json'},
