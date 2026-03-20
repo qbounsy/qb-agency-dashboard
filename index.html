@@ -155,6 +155,7 @@
 <div class="topbar">
   <div><h1>QB Agency Dashboard</h1><div class="sub">CRM &bull; Client Retention &bull; Commission Tracking</div></div>
   <div class="top-right">
+    <span id="unsavedBadge" class="hidden" style="font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;background:var(--orange);color:#fff;">UNSAVED</span>
     <span id="srcBadge" style="display:none;font-size:11px;padding:4px 10px;border-radius:12px;font-weight:600;"></span>
     <button class="btn btn-sm btn-outline" id="syncBtn" style="display:none;color:#fff;border-color:rgba(255,255,255,.4);" onclick="syncAirtable()">Sync Airtable</button>
     <button class="btn btn-sm btn-outline" id="refreshBtn" style="display:none;color:#fff;border-color:rgba(255,255,255,.4);" onclick="refreshData()">Import File</button>
@@ -182,7 +183,7 @@
 <script>
 function openSettings(){const m=document.getElementById('settingsModal');m.style.display='flex';document.getElementById('settingsToken').value=localStorage.getItem('AT_TOKEN')||'';}
 function closeSettings(){document.getElementById('settingsModal').style.display='none';}
-function saveSettings(){const v=document.getElementById('settingsToken').value.trim();if(v){localStorage.setItem('AT_TOKEN',v);AT_TOKEN=v;closeSettings();Promise.all([fetchAirtable(), fetchTasks(), fetchActivities()]).then(([rows, t, a])=>{allRows=rows; tasks=t; activities=a; applyData();});}else{alert('Please enter a valid token.');}}
+function saveSettings(){const v=document.getElementById('settingsToken').value.trim();if(v){localStorage.setItem('AT_TOKEN',v);AT_TOKEN=v;closeSettings();Promise.all([fetchAirtable(), fetchTasks(), fetchActivities()]).then(([rows, t, a])=>{clients=norm(rows); tasks=t; activities=a; dataSource='airtable'; init();});}else{alert('Please enter a valid token.');}}
 function clearToken(){localStorage.removeItem('AT_TOKEN');AT_TOKEN='';document.getElementById('settingsToken').value='';closeSettings();alert('Token cleared. Reload the page to re-enter it.');}
 document.getElementById('settingsModal').addEventListener('click',function(e){if(e.target===this)closeSettings();});
 </script>
