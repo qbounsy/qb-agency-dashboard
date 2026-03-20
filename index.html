@@ -677,6 +677,7 @@ function setMoneyView(view,btn){
   moneyView=view;
   document.querySelectorAll('#page-money .stab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  destroyCharts();
   renderMoney();
 }
 
@@ -725,7 +726,82 @@ function clearFilter(key){
   activeFilters[key]=[];
   renderClients();
 }
-function renderMoney(){ /* TODO: Task 5 */ }
+function renderMoney(){
+  const act=eligible();
+  const yr=curYear();
+  const ytd=ytdEligible();
+  const ytdEarned=ytd.reduce((s,c)=>s+c.advComm,0);
+  const allEarned=act.reduce((s,c)=>s+c.advComm,0);
+  const allTotal=act.reduce((s,c)=>s+c.totalComm,0);
+  const allRemain=act.reduce((s,c)=>s+c.remainComm,0);
+
+  // KPIs
+  document.getElementById('kpis-money').innerHTML=`
+    <div class="kpi good"><div class="lbl">YTD Earned</div><div class="val">${$v(ytdEarned)}</div></div>
+    <div class="kpi"><div class="lbl">All-Time Earned</div><div class="val">${$v(allEarned)}</div></div>
+    <div class="kpi"><div class="lbl">Advance Paid</div><div class="val">${$v(allEarned)}</div></div>
+    <div class="kpi"><div class="lbl">Remaining</div><div class="val">${$v(allRemain)}</div></div>
+  `;
+
+  const isYTD=moneyView==='ytd';
+  const pool=isYTD?ytd:act;
+
+  // Monthly breakdown table
+  const monthly=Array.from({length:12},()=>({earned:0,count:0}));
+  pool.forEach(c=>{
+    if(c.earnedDate){
+      const m=c.earnedDate.getMonth();
+      const matchYear=isYTD?c.earnedDate.getFullYear()===yr:true;
+      if(matchYear){monthly[m].earned+=c.advComm;monthly[m].count++;}
+    }
+  });
+
+  const now=new Date();
+  let totalEarned=0,totalCount=0;
+  const tbl=document.getElementById('monthlyTbl');
+  tbl.innerHTML=`<thead><tr><th style="text-align:left">Month</th><th>Earned</th><th>Policies</th></tr></thead><tbody>`+
+    monthly.map((m,i)=>{
+      totalEarned+=m.earned;totalCount+=m.count;
+      const isCur=isYTD&&i===now.getMonth();
+      const isFuture=isYTD&&i>now.getMonth();
+      return `<tr class="${isCur?'':isFuture?'future':''}">
+        <td>${MONTHS[i]}${isCur?' ★':''}</td><td>${$v(m.earned)}</td><td>${m.count}</td></tr>`;
+    }).join('')+
+    `<tr class="total-row"><td>Total</td><td>${$v(totalEarned)}</td><td>${totalCount}</td></tr></tbody>`;
+
+  // Carrier cards
+  const byCarrier={};
+  pool.forEach(c=>{if(!byCarrier[c.carrier])byCarrier[c.carrier]={earned:0,total:0,count:0};
+    byCarrier[c.carrier].earned+=c.advComm;byCarrier[c.carrier].total+=c.totalComm;byCarrier[c.carrier].count++;});
+  document.getElementById('carrierCards').innerHTML=Object.entries(byCarrier).map(([name,d])=>`
+    <div class="carrier-card">
+      <div class="cc-name">${name}</div>
+      <div class="cc-row"><span>Earned</span><span class="cc-val">${$v(d.earned)}</span></div>
+      <div class="cc-row"><span>Total</span><span class="cc-val">${$v(d.total)}</span></div>
+      <div class="cc-row"><span>Policies</span><span class="cc-val">${d.count}</span></div>
+    </div>
+  `).join('');
+
+  // Charts
+  const carriers=Object.keys(byCarrier);
+  charts['ch-carrier']=new Chart(document.getElementById('ch-carrier'),{
+    type:'bar',
+    data:{labels:carriers,datasets:[{label:'Commission',data:carriers.map(c=>byCarrier[c].earned),
+      backgroundColor:'rgba(46,80,144,.7)'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>$v(v)}}}}
+  });
+
+  const cumData=[];let cum=0;
+  monthly.forEach((m,i)=>{cum+=m.earned;cumData.push(cum);});
+  charts['ch-cum']=new Chart(document.getElementById('ch-cum'),{
+    type:'line',
+    data:{labels:MONTHS,datasets:[{label:'Cumulative',data:cumData,
+      borderColor:'var(--blue)',backgroundColor:'rgba(46,80,144,.1)',fill:true,tension:.3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>$v(v)}}}}
+  });
+}
 function openAddTask(){
   const name=prompt('Client name (or leave blank):');
   const desc=prompt('Task description:');
