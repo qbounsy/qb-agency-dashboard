@@ -131,6 +131,29 @@
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
   .toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;z-index:2000;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;}
   .toast.show{opacity:1;transform:translateY(0);}
+
+  /* Filter chips */
+  .chip{display:inline-block;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--g300);background:#fff;color:var(--g700);transition:all .15s;}
+  .chip:hover{border-color:var(--blue);color:var(--blue);}
+  .chip.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .chip-sep{color:var(--g300);margin:0 4px;font-size:16px;line-height:1;}
+
+  /* Client detail drawer */
+  .drawer-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .drawer-overlay.open{opacity:1;pointer-events:all;}
+  .drawer{position:fixed;top:0;right:0;width:480px;max-width:90vw;height:100%;background:#fff;z-index:1001;box-shadow:-4px 0 20px rgba(0,0,0,.15);transform:translateX(100%);transition:transform .25s ease;overflow-y:auto;}
+  .drawer-overlay.open .drawer{transform:translateX(0);}
+  .drawer-header{padding:20px 24px;border-bottom:1px solid var(--g200);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1;}
+  .drawer-header h2{font-size:18px;font-weight:700;color:var(--navy);}
+  .drawer-section{padding:16px 24px;border-bottom:1px solid var(--g100);}
+  .drawer-section h4{font-size:13px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px;}
+  .activity-entry{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--g50);}
+  .activity-entry:last-child{border-bottom:none;}
+  .activity-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+  .activity-icon.call{background:#DEF7EC;color:#03543F;}
+  .activity-icon.follow-up{background:#FEF3C7;color:#92400E;}
+  .activity-icon.note{background:#DBEAFE;color:#1E40AF;}
+  .activity-icon.task-completed{background:#E0E7FF;color:#3730A3;}
 </style>
 </head>
 <body>
@@ -284,6 +307,17 @@ document.getElementById('settingsModal').addEventListener('click',function(e){if
       <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
       <button class="btn btn-green btn-sm" id="modalSaveBtn" onclick="saveEdit()">Save Changes</button>
     </div>
+  </div>
+</div>
+
+<!-- Client Detail Drawer -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="if(event.target===this)closeDrawer()">
+  <div class="drawer" id="clientDrawer">
+    <div class="drawer-header">
+      <h2 id="drawerTitle">Client Details</h2>
+      <button class="modal-close" onclick="closeDrawer()">&times;</button>
+    </div>
+    <div id="drawerContent"></div>
   </div>
 </div>
 
@@ -667,7 +701,30 @@ function renderHome(){
   renderTasks();
   renderAlerts();
 }
-function renderClients(){ /* TODO: Task 4 */ }
+function renderClients(){
+  const statuses=['Active','Pending','Lapsed'];
+  const carriers=['AIG','RNA','AHL','AMAM','Transamerica'];
+  const chipContainer=document.getElementById('filterChips');
+  const noStatusFilter=activeFilters.statuses.length===0;
+  chipContainer.innerHTML=
+    `<span class="chip${noStatusFilter?' active':''}" onclick="clearFilter('statuses')">All</span>`
+    +statuses.map(s=>`<span class="chip${activeFilters.statuses.includes(s)?' active':''}" onclick="toggleFilter('statuses','${s}')">${s}</span>`).join('')
+    +'<span class="chip-sep">|</span>'
+    +carriers.map(c=>`<span class="chip${activeFilters.carriers.includes(c)?' active':''}" onclick="toggleFilter('carriers','${c}')">${c}</span>`).join('');
+  rTable();
+}
+
+function toggleFilter(key,val){
+  const arr=activeFilters[key];
+  const idx=arr.indexOf(val);
+  if(idx>-1) arr.splice(idx,1); else arr.push(val);
+  renderClients();
+}
+
+function clearFilter(key){
+  activeFilters[key]=[];
+  renderClients();
+}
 function renderMoney(){ /* TODO: Task 5 */ }
 function openAddTask(){
   const name=prompt('Client name (or leave blank):');
@@ -966,17 +1023,203 @@ async function createTasksFromAlert(alertIdx){
 
 /* ===== CLIENT TABLE ===== */
 function rTable(){
-  const searchEl=document.getElementById('clientSearch');
-  const qf=searchEl?searchEl.value.toLowerCase():'';
-  let d=clients.map((c,i)=>({...c,_idx:i})).filter(c=>{if(qf&&!c.name.toLowerCase().includes(qf)&&!(c.phone||'').toLowerCase().includes(qf)&&!(c.carrier||'').toLowerCase().includes(qf))return false;return true;});
-  if(sortCol)d.sort((a,b)=>{let va=a[sortCol],vb=b[sortCol];if(va==null)return 1;if(vb==null)return-1;return(typeof va==='string'?va.localeCompare(vb):(va-vb))*sortDir;});
-  document.getElementById('cc').textContent=`${d.length} of ${clients.length} clients`;
-  const cols=[{k:'name',l:'Name'},{k:'status',l:'Status'},{k:'planType',l:'Plan'},{k:'carrier',l:'Carrier'},{k:'monthlyPremium',l:'Premium',f:'$'},{k:'annualPremium',l:'Annual',f:'$'},{k:'draftStr',l:'Draft Date'},{k:'daysUntilDraft',l:'Days to Draft'},{k:'advComm',l:'Adv Comm',f:'$'},{k:'totalComm',l:'Total Comm',f:'$'},{k:'remainComm',l:'Remaining',f:'$'}];
-  document.getElementById('th').innerHTML='<tr>'+cols.map(c=>`<th style="cursor:pointer" onclick="doSort('${c.k}')">${c.l}${sortCol===c.k?(sortDir===1?' ▲':' ▼'):''}</th>`).join('')+'</tr>';
-  document.getElementById('tb').innerHTML=d.map(r=>'<tr class="clickable-row" onclick="openEdit('+r._idx+')">'+cols.map(c=>{let v=r[c.k];if(c.k==='status')return`<td>${sBadge(v)}</td>`;if(c.k==='daysUntilDraft'){if(v===null)return'<td>—</td>';return`<td class="${v<=3?'draft-urgent':v<=7?'draft-warning':''}">${v}d</td>`;}if(c.f==='$')return`<td>${$v(v||0)}</td>`;return`<td>${v||'—'}</td>`;}).join('')+'</tr>').join('');
+  const search=(document.getElementById('clientSearch')||{}).value||'';
+  activeFilters.search=search.toLowerCase();
+
+  let list=[...clients];
+
+  if(activeFilters.statuses.length){
+    list=list.filter(c=>{
+      return activeFilters.statuses.some(s=>{
+        if(s==='Pending') return c.status.startsWith('Pending')||c.status==='Payment Failed - Lapse Warning';
+        return c.status===s;
+      });
+    });
+  }
+  if(activeFilters.carriers.length) list=list.filter(c=>activeFilters.carriers.includes(c.carrier));
+  if(activeFilters.search){
+    list=list.filter(c=>
+      (c.name||'').toLowerCase().includes(activeFilters.search)||
+      (c.phone||'').toLowerCase().includes(activeFilters.search)||
+      (c.carrier||'').toLowerCase().includes(activeFilters.search)
+    );
+  }
+
+  if(sortCol){
+    list.sort((a,b)=>{
+      let va=a[sortCol],vb=b[sortCol];
+      if(typeof va==='string') return va.localeCompare(vb)*sortDir;
+      return ((va||0)-(vb||0))*sortDir;
+    });
+  }
+
+  document.getElementById('cc').textContent=list.length+' client'+(list.length!==1?'s':'');
+
+  document.getElementById('th').innerHTML=`<tr>
+    <th style="cursor:pointer" onclick="doSort('name')">Name</th>
+    <th style="cursor:pointer" onclick="doSort('carrier')">Carrier</th>
+    <th style="cursor:pointer" onclick="doSort('status')">Status</th>
+    <th style="cursor:pointer" onclick="doSort('monthlyPremium')">Premium</th>
+    <th style="cursor:pointer" onclick="doSort('daysUntilDraft')">Draft In</th>
+  </tr>`;
+
+  document.getElementById('tb').innerHTML=list.map((c,i)=>{
+    const idx=clients.indexOf(c);
+    const dd=c.daysUntilDraft;
+    const ddCls=dd!==null&&dd<=3?'draft-urgent':dd!==null&&dd<=7?'draft-warning':'';
+    return `<tr class="clickable-row" onclick="openDrawer(${idx})">
+      <td><strong>${c.name||'—'}</strong></td>
+      <td>${c.carrier||'—'}</td>
+      <td>${sBadge(c.status)}</td>
+      <td>${$v(c.monthlyPremium)}</td>
+      <td class="${ddCls}">${dd!==null?dd+' days':'—'}</td>
+    </tr>`;
+  }).join('');
 }
 function sBadge(s){const m={'Active':'active','Pending First Payment':'pending','Pending Requirement':'pending','Payment Failed - Lapse Warning':'failed','Lapsed':'lapsed','Cancelled':'cancelled','Declined':'declined'};return`<span class="badge badge-${m[s]||'pending'}">${s}</span>`;}
 function doSort(c){if(sortCol===c)sortDir*=-1;else{sortCol=c;sortDir=1;}rTable();}
+
+/* ===== CLIENT DETAIL DRAWER ===== */
+let drawerIdx=-1;
+
+function openDrawer(idx){
+  drawerIdx=idx;
+  const c=clients[idx];
+  const clientActivities=activities.filter(a=>a.clientName===c.name).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  const clientTasks=tasks.filter(t=>!t.completed&&t.clientName===c.name);
+
+  const actIcons={call:'📞','follow-up':'🔄',note:'📝','task-completed':'✅'};
+
+  document.getElementById('drawerTitle').textContent=c.name||'Client Details';
+  document.getElementById('drawerContent').innerHTML=`
+    <div class="drawer-section">
+      <h4>Info</h4>
+      <div class="form-grid">
+        <div class="form-group"><label>Phone</label><input type="text" id="dw-phone" value="${c.phone||''}"></div>
+        <div class="form-group"><label>Status</label>
+          <select id="dw-status">
+            ${['Active','Pending First Payment','Pending Requirement','Payment Failed - Lapse Warning','Lapsed','Cancelled','Declined'].map(s=>`<option${c.status===s?' selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Carrier</label>
+          <select id="dw-carrier">
+            ${['AIG','RNA','AHL','AMAM','Transamerica'].map(cr=>`<option${c.carrier===cr?' selected':''}>${cr}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Plan Type</label>
+          <select id="dw-plan">
+            ${['Level','Graded','GI','Standard','Modified','ROP'].map(p=>`<option${c.planType===p?' selected':''}>${p}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Monthly Premium</label><input type="number" step="0.01" id="dw-premium" value="${c.monthlyPremium||0}"></div>
+        <div class="form-group"><label>Draft Date</label><input type="date" id="dw-draft" value="${dtToInput(c.draftDate)}"></div>
+        <div class="form-group"><label>Date of Sale</label><input type="date" id="dw-dos" value="${dtToInput(c.dateOfSale)}"></div>
+        <div class="form-group"><label>Annual Premium</label><div class="calc-val">${$v(c.annualPremium||0)}</div></div>
+        <div class="form-group"><label>Advance Commission</label><div class="calc-val">${$v(c.advComm||0)}</div></div>
+        <div class="form-group"><label>Total Commission</label><div class="calc-val">${$v(c.totalComm||0)}</div></div>
+        <div class="form-group"><label>Remaining</label><div class="calc-val">${$v(c.remainComm||0)}</div></div>
+        <div class="form-group full"><label>Notes</label><textarea id="dw-notes">${c.notes||''}</textarea></div>
+        <div class="form-group full"><label>Retention Notes</label><textarea id="dw-retnotes">${c.retNotes||''}</textarea></div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-sm btn-green" onclick="saveDrawer()">Save Changes</button>
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <h4>Tasks <button class="btn btn-sm btn-outline" style="float:right;font-size:11px;" onclick="addClientTask(${idx})">+ Task</button></h4>
+      ${clientTasks.length?clientTasks.map(t=>{
+        const ti=tasks.indexOf(t);
+        return `<div class="alert-item" style="padding:6px 0;">
+          <input type="checkbox" onchange="handleCompleteTask(${ti}).then(()=>openDrawer(${idx}))" style="width:16px;height:16px;cursor:pointer;">
+          <div class="alert-text" style="font-size:13px;">${t.description}</div>
+          <span style="font-size:11px;color:var(--g500);">${t.dueDate?t.dueDate.toLocaleDateString():'—'}</span>
+        </div>`;
+      }).join(''):'<div style="color:var(--g500);font-size:13px;">No open tasks</div>'}
+    </div>
+
+    <div class="drawer-section">
+      <h4>Activity Log <button class="btn btn-sm btn-outline" style="float:right;font-size:11px;" onclick="addClientActivity(${idx})">+ Log Activity</button></h4>
+      ${clientActivities.length?clientActivities.map(a=>`
+        <div class="activity-entry">
+          <div class="activity-icon ${a.type}">${actIcons[a.type]||'📝'}</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;">${a.description}</div>
+            <div style="font-size:11px;color:var(--g500);">${a.type} • ${a.timestamp?a.timestamp.toLocaleString():'—'}</div>
+          </div>
+        </div>
+      `).join(''):'<div style="color:var(--g500);font-size:13px;">No activity logged yet</div>'}
+    </div>
+  `;
+
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+
+function closeDrawer(){
+  document.getElementById('drawerOverlay').classList.remove('open');
+  drawerIdx=-1;
+}
+
+function addClientTask(idx){
+  const c=clients[idx];
+  const desc=prompt('Task description:');
+  if(!desc) return;
+  const dueDateStr=prompt('Due date (YYYY-MM-DD, or leave blank):');
+  const dueDate=dueDateStr?new Date(dueDateStr+'T12:00:00'):null;
+  createTask(c._airtableId, c.name, desc, dueDate, 'manual')
+    .then(()=>{openDrawer(idx);showToast('Task created');})
+    .catch(e=>{console.error(e);showToast('Error creating task');});
+}
+
+function addClientActivity(idx){
+  const c=clients[idx];
+  const type=prompt('Activity type (call, follow-up, note):');
+  if(!type||!['call','follow-up','note'].includes(type)){showToast('Invalid type');return;}
+  const desc=prompt('Description:');
+  if(!desc) return;
+  logActivity(c._airtableId, c.name, type, desc)
+    .then(()=>{openDrawer(idx);showToast('Activity logged');})
+    .catch(e=>{console.error(e);showToast('Error logging activity');});
+}
+
+async function saveDrawer(){
+  const c=clients[drawerIdx];
+  c.phone=document.getElementById('dw-phone').value;
+  c.status=document.getElementById('dw-status').value;
+  c.carrier=document.getElementById('dw-carrier').value;
+  c.planType=document.getElementById('dw-plan').value;
+  c.monthlyPremium=parseFloat(document.getElementById('dw-premium').value)||0;
+  c.draftDate=inputToDt(document.getElementById('dw-draft').value);
+  c.dateOfSale=inputToDt(document.getElementById('dw-dos').value);
+  c.notes=document.getElementById('dw-notes').value;
+  c.retNotes=document.getElementById('dw-retnotes').value;
+  calcCommission(c);
+
+  if(c._airtableId&&AT_TOKEN){
+    try{
+      const fields={
+        'Phone Number':c.phone,
+        'Policy Status':c.status,
+        'Carrier':c.carrier,
+        'Plan Type':c.planType,
+        'Monthly Premium':c.monthlyPremium,
+        'First Draft Date':c.draftDate?c.draftDate.toISOString().split('T')[0]:'',
+        'Date of Sale':c.dateOfSale?c.dateOfSale.toISOString().split('T')[0]:'',
+        'Notes':c.notes,
+        'Retention Notes':c.retNotes
+      };
+      await fetch(`${AT_URL}/${c._airtableId}`,{
+        method:'PATCH',
+        headers:{'Authorization':`Bearer ${AT_TOKEN}`,'Content-Type':'application/json'},
+        body:JSON.stringify({fields})
+      });
+    }catch(e){console.error(e);showToast('Error saving to Airtable');}
+  }
+
+  openDrawer(drawerIdx);
+  renderTab(document.querySelector('.main-tab.active').textContent.toLowerCase());
+  showToast('Changes saved');
+}
 
 /* ===== EDIT MODAL ===== */
 function dtToInput(d){if(!d)return '';const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return`${y}-${m}-${dd}`;}
