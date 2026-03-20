@@ -525,7 +525,14 @@ function calcCommission(c){
   c.remainComm=c.totalComm-c.advComm;
   c.earnedDate=QUICK.includes(c.carrier)?c.dateOfSale:c.draftDate;
   const today=new Date();today.setHours(0,0,0,0);
-  c.daysUntilDraft=c.draftDate?Math.ceil((c.draftDate-today)/864e5):null;
+  // Roll draft date forward to next monthly occurrence
+  if(c.draftDate){
+    const next=new Date(c.draftDate);
+    next.setFullYear(today.getFullYear());
+    next.setMonth(today.getMonth());
+    if(next<today) next.setMonth(next.getMonth()+1);
+    c.daysUntilDraft=Math.ceil((next-today)/864e5);
+  } else { c.daysUntilDraft=null; }
   c.draftStr=c.draftDate?c.draftDate.toLocaleDateString('en-US'):'';
 }
 
