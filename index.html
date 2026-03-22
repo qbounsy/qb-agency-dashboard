@@ -609,9 +609,12 @@ function renderHome(){
   const totalEarned=ytd.reduce((s,c)=>s+c.advComm,0);
   const monthEarned=thisMonth.reduce((s,c)=>s+c.advComm,0);
 
+  const activePolicies=clients.filter(c=>c.status==='Active').length;
+  const pendingFirst=clients.filter(c=>c.status==='Pending First Payment').length;
+
   document.getElementById('kpis-home').innerHTML=`
-    <div class="kpi"><div class="lbl">Active Clients</div><div class="val">${act.length}</div></div>
-    <div class="kpi good"><div class="lbl">Active Policies</div><div class="val">${clients.filter(c=>c.status==='Active').length}</div></div>
+    <div class="kpi good"><div class="lbl">Active Policies</div><div class="val">${activePolicies}</div></div>
+    <div class="kpi warn"><div class="lbl">First Drafts Pending</div><div class="val">${pendingFirst}</div></div>
     <div class="kpi"><div class="lbl">Total Earned (YTD)</div><div class="val">${$v(totalEarned)}</div></div>
     <div class="kpi"><div class="lbl">This Month</div><div class="val">${$v(monthEarned)}</div></div>
   `;
