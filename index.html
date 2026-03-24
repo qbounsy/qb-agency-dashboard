@@ -732,7 +732,7 @@ function init(){
   const badge=document.getElementById('srcBadge');
   badge.style.display='inline-block';
   if(dataSource==='airtable'){badge.textContent='LIVE';badge.style.background='#00B050';badge.style.color='#fff';}
-  else if(dataSource==='prebaked'){badge.textContent='SAVED';badge.style.background='#F0AD4E';badge.style.color='#fff';}
+  else if(dataSource==='prebaked'){badge.textContent='OFFLINE — Set Token in Settings';badge.style.background='#E74C3C';badge.style.color='#fff';badge.style.cursor='pointer';badge.onclick=openSettings;}
   else{badge.textContent='FILE';badge.style.background='#2E5090';badge.style.color='#fff';}
   document.getElementById('upd').textContent='Updated: '+new Date().toLocaleString();
   renderTab('home');
@@ -1034,17 +1034,20 @@ async function saveDrawer(){
         'Notes':c.notes,
         'Retention Notes':c.retNotes
       };
-      await fetch(`${AT_URL}/${c._airtableId}`,{
+      const resp=await fetch(`${AT_URL}/${c._airtableId}`,{
         method:'PATCH',
         headers:{'Authorization':`Bearer ${AT_TOKEN}`,'Content-Type':'application/json'},
         body:JSON.stringify({fields})
       });
-    }catch(e){console.error(e);showToast('Error saving to Airtable');}
+      if(!resp.ok) throw new Error('Status '+resp.status);
+    }catch(e){console.error(e);showToast('Error saving to Airtable — check token in Settings');}
+  } else if(!AT_TOKEN){
+    showToast('Not connected to Airtable — set token in Settings (gear icon)');
   }
 
   openDrawer(drawerIdx);
   renderTab(document.querySelector('.main-tab.active').textContent.toLowerCase());
-  showToast('Changes saved');
+  if(AT_TOKEN) showToast('Changes saved');
 }
 
 /* ===== EDIT MODAL ===== */
@@ -1222,7 +1225,7 @@ async function saveNewClient(){
     showToast('Added to Airtable: '+newClient.name);
   } catch(e){
     console.error('Airtable create error:',e);
-    showToast('Added locally — Airtable sync failed');
+    showToast('Airtable sync failed — check your token in Settings (gear icon)');
     hasUnsaved=true;
     document.getElementById('unsavedBadge').classList.remove('hidden');
   }
