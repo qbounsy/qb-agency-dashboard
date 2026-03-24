@@ -183,7 +183,7 @@
 <script>
 function openSettings(){const m=document.getElementById('settingsModal');m.style.display='flex';document.getElementById('settingsToken').value=localStorage.getItem('AT_TOKEN')||'';}
 function closeSettings(){document.getElementById('settingsModal').style.display='none';}
-function saveSettings(){const v=document.getElementById('settingsToken').value.trim();if(v){localStorage.setItem('AT_TOKEN',v);AT_TOKEN=v;closeSettings();Promise.all([fetchAirtable(), fetchActivities()]).then(([rows, a])=>{clients=norm(rows); activities=a; dataSource='airtable'; init();});}else{alert('Please enter a valid token.');}}
+function saveSettings(){const v=document.getElementById('settingsToken').value.trim();if(v){localStorage.setItem('AT_TOKEN',v);AT_TOKEN=v;closeSettings();showToast('Connecting to Airtable...');Promise.all([fetchAirtable(), fetchActivities()]).then(([rows, a])=>{clients=norm(rows); activities=a; dataSource='airtable'; init();showToast('Connected — '+clients.length+' clients loaded');}).catch(e=>{console.error(e);dataSource='prebaked';init();showToast('Connection failed — check your token');});}else{alert('Please enter a valid token.');}}
 function clearToken(){localStorage.removeItem('AT_TOKEN');AT_TOKEN='';document.getElementById('settingsToken').value='';closeSettings();alert('Token cleared. Reload the page to re-enter it.');}
 document.getElementById('settingsModal').addEventListener('click',function(e){if(e.target===this)closeSettings();});
 </script>
